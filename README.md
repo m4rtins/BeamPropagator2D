@@ -1,7 +1,3 @@
-### Installation and Setup
-
-The source code is available at GitHub and other sources
-
 #### Dependencies
 
 The *BeamPropagator.py* software was written using version 3.8. of the
