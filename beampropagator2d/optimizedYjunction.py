@@ -2,10 +2,10 @@ import logging
 import sys
 
 import numpy as np
-from ..beam import *
-from ..beampropagater import *
+from .beam import *
+from .beampropagater import *
 from .indexcalculator import *
-from ..waveguides import *
+from .waveguides import *
 
 class optimizedYjunction(CombinedWaveguide):
 
@@ -261,7 +261,4 @@ class optimizedYjunction(CombinedWaveguide):
         super().write_waveguide(computational_grid)
         self.index_calc.write_waveguide(computational_grid)
 
-    def dump_data(self, filepath):
-        super().dump_data(filepath)
-        self.index_calc.dump_data(filepath)
 

@@ -4,8 +4,8 @@ import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 from .beampropagater import *
-#from .indexcalculator import *
-#from .optimizedYjunction import *
+from .indexcalculator import *
+from .optimizedYjunction import *
 
 
 class Plotter:

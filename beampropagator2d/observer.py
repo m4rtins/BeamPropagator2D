@@ -70,7 +70,8 @@ class Observer:
         self.efield_intensity_in_guide[self._propation_step] = np.trapz(
                                             np.abs(masked_field) ** 2, dx=dx)
 
-
+    # code below this marking taken from Oliver Melchert (modified)
+    # --------------------------------------------------------------------------
     def _modeMismatchLoss(self, dx,E0, E):
         """mode mismatch loss
 
@@ -130,6 +131,7 @@ class Observer:
 
         self.alpha[self._propation_step] = (10. * np.log10(efield_intensity
                                           / self.efield_intensity[0]))
+    # --------- End of Code by Oliver Melchert ---------------------------------
 
     def dump_data(self, fName):
         """dump field
@@ -158,26 +160,4 @@ class Observer:
         self.P1 = np.load(filepath + "_power_atten.npy")
         self.alpha = np.load(filepath + "_alpha.npy")
 
-    def _read_data(self, filepath):
-        self._read_field(filepath)
-        self._read_obs(filepath)
-
-    def _read_field(self, filepath):
-        self.efield_profile = np.genfromtxt(filepath + "_field.dat",
-                                            dtype=np.complex64, skip_header=1,
-                                            usecols=range(1,
-                                                          self.computational_grid.N_x))
-
-    def _read_obs(self, filepath):
-        fStream = open(filepath + "_obs.dat", "r")
-        self.alpha = []
-        fStream.readline()
-        for i, lines in enumerate(fStream):
-            line = lines.split(" ")
-            self.efield_intensity[i] = float(line[2])
-            self.efield_intensity_in_guide[i] = float(line[3])
-            self.alpha.append(float(line[6]))
-            self.mode_loss_mismatch.append(float(line[1]))
-            self.P1.append(float(line[4]) + float(line[5]) * 1j)
-
-        fStream.close()
+    # TODO: Write function saving observables to text file

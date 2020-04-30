@@ -6,10 +6,7 @@
 
 # --------------------------------------------
 
-import logging
 from os import path, mkdir
-
-log = logging.getLogger(__name__)
 
 
 class IOHandler:
@@ -34,18 +31,17 @@ class IOHandler:
     def dump_data(self):
         """save the data contained in data_instance, checking whether the directories already exist and asking whether to create them if not. """
         while not path.isdir(self.directory):
-            log.info(
-                "The directory {} does not exist. Do you want to create it (1, default) or specify another? (2) [1/2]".format(
+            print(
+                "# The directory {} does not exist. Do you want to create it (1, default) or specify another? (2) [1/2]".format(
                     self.directory))
             select = input()
             if select == "2":
                 self.directory = input("Enter new directory: \n")
             else:
                 mkdir(self.directory)
-                log.info("Directory " + self.directory + " created")
+                print("# Directory " + self.directory + " created")
 
         self.fullpath = self.directory + "/"  +self.fName
-        print(self.fullpath)
 
         self.data_instance.dump_data(self.fullpath)
 
@@ -55,6 +51,6 @@ class IOHandler:
         try:
             self.data_instance.read_data(self.directory + self.fName)
         except FileNotFoundError as file_error:
-            log.error(
-                "The file {} belonging to {} do not exist. Either provide the missing file or run a instance-specific data reader".format(
+            print(
+                "# The file {} belonging to {} do not exist. Either provide the missing file or run a instance-specific data reader".format(
                     file_error.filename, self.fName))

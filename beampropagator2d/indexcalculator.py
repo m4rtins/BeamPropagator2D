@@ -1,7 +1,4 @@
 import numpy as np
-import logging
-
-log = logging.getLogger(__name__)
 
 
 class IndexCalculator():
@@ -129,7 +126,7 @@ class IndexCalculator():
         dev_z = np.transpose(fac * 1 / self.intensities[1:-1]) + \
                 field[1:-1, 1:-1] * np.transpose(dev_b_z)
         dev_z_2 = np.transpose(2 * fac * dev_b_z) + \
-                field[1:-1, 1:-1] * np.transpose(dev_b_z)
+                field[1:-1, 1:-1] * np.transpose(dev_b_z_2)
         dev_x_2 = (field[2:, 1:-1] +
                    field[:-2, 1:-1] - 2 * field[1:-1, 1:-1])/dx**2
         return dev_z, dev_z_2, dev_x_2
