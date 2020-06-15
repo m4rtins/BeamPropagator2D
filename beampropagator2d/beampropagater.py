@@ -37,7 +37,7 @@ class BeamPropagator2D:
 
     def __init__(self, computational_grid: ComputationalGrid = None,
                  waveguide: Union[WaveguideBase, CombinedWaveguide] = None,
-                 beam: Union[Beam, SuperPosition] = None):
+                 beam: Union[Beam, SuperPosition] = None, E0=None, n_eff=None):
         """Create a BeamPropagator2D instance, bundling the structures
         "ComputationalGrid", "Waveguide" and "Beam" in preparation for the
         application of a propagation method. Supports the Methods:
@@ -71,7 +71,8 @@ class BeamPropagator2D:
         # write waveguide structure into the computational grid
         self.waveguide.write_waveguide(self.computational_grid)
         # get the inital field in transversal direction for the grid at hand
-        self.E0 = self.beam.calc_initial_field(self.computational_grid)
+        self.E0 = self.beam.calc_initial_field(self.computational_grid) if E0 is None else E0
+        self.computational_grid.n_eff = self.computational_grid.n_eff if E0 is None else n_eff
 
 
     def run_simulation(self):

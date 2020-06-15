@@ -56,14 +56,7 @@ class IndexCalculator():
 
         self.output_field *= np.sqrt(np.trapz(np.abs(input_field) ** 2, dx=self.dx)) / np.sqrt(np.trapz(np.abs(output_field) ** 2, dx=self.dx))
         # compute the relative phase angles of input field and output field
-        angles_in = np.angle(input_field)
-        angles_out = np.angle(output_field)
 
-        relative_angles = angles_out - angles_in
-
-        angle = np.pi - relative_angles[np.argmin(
-            np.abs(self.x - xp))]
-        self.output_field = self.output_field * np.exp(1j * angle)
 
         self.index_levels = index_levels
         self.cutoff = cutoff
@@ -120,7 +113,7 @@ class IndexCalculator():
         """
         dev_b_z = (1 / self.intensities[1:-1] - 1 / self.intensities[:-2]) / dz
         dev_b_z_2 = ( 1 / self.intensities[2:] + 1 / self.intensities[:-2] -
-                     2 * self.intensities[1:-1])/dz**2
+                     2 / self.intensities[1:-1])/dz**2
         fac = 1 / (self.z[-1]-self.z[0]) * (self.output_field[1:-1] -
                                             self.input_field[1:-1])
         dev_z = np.transpose(fac * 1 / self.intensities[1:-1]) + \
@@ -210,7 +203,12 @@ class IndexCalculator():
 
         # minimize the error between trimmed and indeal distribution
         # through a brute-force method -----------------------------------------
-        ref_indices = np.linspace(self.index_levels[0]-0.02, self.index_levels[-1] + 0.02, 500)
+        print(np.amin(np.real(self.ideal_index_distribution)))
+        print(np.amax(np.real(self.ideal_index_distribution)))
+
+        ref_indices = np.linspace(np.amin(np.real(self.ideal_index_distribution))-0.03, np.amax(np.real(self.ideal_index_distribution)) + 0.03, 1000)
+
+#        ref_indices = np.linspace(self.index_levels[0]-0.03, self.index_levels[-1] + 0.03, 1000)
         y = []
         for i in ref_indices:
             errors = calculate_distri_and_errors(i)
@@ -270,10 +268,12 @@ class IndexCalculator():
         dx = self.dx
         n_xz = computational_grid.n_xz
         mask = computational_grid.waveguide_mask
-        index_distro  = self.ideal_index_distribution if self.use_ideal_distribution else \
+        index_distro = self.ideal_index_distribution if self.use_ideal_distribution else \
                 self.trimmed_index_distribution
+
         for zdex, z in enumerate(computational_grid.z):
-            if z >= self.z[0] and z <= self.z[-1]:
+
+            if self.z[0] <= z <= self.z[-1]:
                 # calculate the index of the nearest z coordinate
                 index = np.array(np.argmin(np.abs(self.z[1:-1] - z)))
 

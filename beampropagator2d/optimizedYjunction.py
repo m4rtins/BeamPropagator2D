@@ -1,11 +1,11 @@
-import logging
-import sys
-
 import numpy as np
+
 from .beam import *
-from .beampropagater import *
-from .indexcalculator import *
 from .waveguides import *
+from .indexcalculator import *
+from .beampropagater import *
+from .observer import *
+
 
 class optimizedYjunction(CombinedWaveguide):
 
@@ -17,7 +17,8 @@ class optimizedYjunction(CombinedWaveguide):
                  z_resolution=200, guide_seperation=4, width=3,
                  index_levels=np.array([1.5, 1.505, 1.52]),
                  xp=10, use_ideal_distribution=False,
-                 cutoff=0.5e-2):
+                 cutoff=0.5e-2,
+                 effective_width=2, old_version=False):
         """A y-splitter structure consisting of linear waveguides with an
         branching region optimized for a certain wavelength and specific
         discrete refractive index levels. The procedure specified in [1] is
@@ -57,6 +58,10 @@ class optimizedYjunction(CombinedWaveguide):
             branching region
         width : float
             the width of the linear waveguides
+        effective_width : float
+            the effective width of the input and output waveguides, ie the region
+            around the guides considered for the calculation of the guided
+            intensity
         index_levels : np.ndarray
             the refractive indices used trimming procedure
         xp : float
@@ -102,6 +107,7 @@ class optimizedYjunction(CombinedWaveguide):
         self.xp                     = xp
         self.use_ideal_distribution = use_ideal_distribution
         self.cutoff                 = cutoff
+        self.old_version            = old_version
 
         # x coordinate of junction outputs -------------------------------------
         self.output_x_offset = \
@@ -120,7 +126,8 @@ class optimizedYjunction(CombinedWaveguide):
             z_end=self.branching_region_z[0],
             guide_x_coord=self.guide_x_coord,
             angle=0,
-            coord_mode="absolute")
+            coord_mode="absolute",
+            effective_width=effective_width)
         self.waveguide_input = [self.waveguide_input]
 
         self.output_1 = LinearWaveguide(
@@ -130,10 +137,11 @@ class optimizedYjunction(CombinedWaveguide):
             z_start=self.branching_region_z[1],
             z_end=z_params[1],
             guide_x_coord=self.guide_x_coord + \
-                          np.cos(self.output_angle) * self.width / 2 + \
+                          1/np.cos(self.output_angle) * self.width / 2 + \
                           self.guide_seperation / 2,
             angle=self.output_angle,
-            coord_mode="absolute")
+            coord_mode="absolute",
+            effective_width=effective_width)
 
         self.output_2 = LinearWaveguide(
             refractive_index_guide=refractive_index_guide,
@@ -142,10 +150,11 @@ class optimizedYjunction(CombinedWaveguide):
             z_start=self.branching_region_z[1],
             z_end=z_params[1],
             guide_x_coord=self.guide_x_coord - \
-                          np.cos(self.output_angle) * self.width / 2 - \
+                          1/np.cos(self.output_angle) * self.width / 2 - \
                           self.guide_seperation / 2,
             angle=-self.output_angle,
-            coord_mode="absolute")
+            coord_mode="absolute",
+            effective_width=effective_width)
 
         self.waveguide_base = WaveguideBase(
             refractive_index_medium=self.refractive_index_medium)
@@ -157,7 +166,19 @@ class optimizedYjunction(CombinedWaveguide):
                             retstep=True)
         z, dz = np.linspace(*self.branching_region_z, self.z_resolution,
                             retstep=True)
-        input_field, output_field, n_eff = self.compute_output_field(x)
+
+        output_field = self.compute_output_field(x)
+        input_field, n_eff = self.compute_input_field(x)
+
+        angles_in = np.angle(input_field)
+        angles_out = np.angle(output_field)
+
+        relative_angles = angles_out - angles_in
+
+        angle = np.pi - relative_angles[np.argmin(
+            np.abs(x - xp))]
+        output_field = output_field * np.exp(1j * angle)
+
 
         self.index_calc = IndexCalculator(input_field=input_field, output_field=output_field, x=x, dx=dx, z=z, dz=dz,
                                      index_levels=self.index_levels,
@@ -181,74 +202,97 @@ class optimizedYjunction(CombinedWaveguide):
         """
 
         logging.info("Starting computation of ideal field at junction output")
+        if self.old_version:
+            # temporal grid for propagation ----------------------------------------
+            temp_grid = ComputationalGrid(
+                x_params=(
+                self.guide_x_coord - self.output_x_offset - 5 * self.width,
+                self.guide_x_coord + self.output_x_offset + 5 * self.width,
+                self.x_params[2]),
+                z_params=(self.branching_region_z[1], self.z_params[1], self.z_params[2]),
+                k_max=0.00)
 
-        # temporal grid for propagation ----------------------------------------
+            # waveguides for propagation in inverse z direction --------------------
+            waveguide_base = WaveguideBase(
+                refractive_index_medium=self.refractive_index_medium)
+
+            waveguide_output_1 = LinearWaveguide(
+                width=self.width,
+                refractive_index_guide=self.refractive_index_guide,
+                refractive_index_medium=0,
+                guide_x_coord=self.guide_x_coord + \
+                              self.output_x_offset + \
+                              np.cos(self.output_angle) * self.width / 2 + \
+                              self.guide_seperation / 2,
+                z_end=self.z_params[1], angle=-self.output_angle,
+                z_start=self.branching_region_z[1],
+                coord_mode="absolute")
+
+            waveguide_output_2 = LinearWaveguide(
+                width=self.width,
+                refractive_index_guide=self.refractive_index_guide,
+                refractive_index_medium=0,
+                guide_x_coord=self.guide_x_coord - \
+                              self.output_x_offset - \
+                              np.cos(self.output_angle) * self.width / 2 - \
+                              self.guide_seperation / 2,
+                z_end=self.z_params[1],
+                z_start=self.branching_region_z[1],
+                angle=self.output_angle,
+                coord_mode="absolute")
+
+            guide = CombinedWaveguide(
+                waveguide_base=waveguide_base, waveguide_additional=[],
+                waveguide_input=[waveguide_output_1, waveguide_output_2])
+
+            # beam for reversed propagation ----------------------------------------
+            beam = EigenModes(wavelength=self.beam.wavelength, waveguide=guide,
+                              rel_strength=[0.5, 0.5],
+                              phase_shift=[0, 0])
+
+            # propagate in reversed direction --------------------------------------
+            solver = Chung1990Solver(computational_grid=temp_grid,
+                                     waveguide=guide, beam=beam)
+            solver.run_simulation()
+
+            # conjugate and interpolate the electric field at the output -----------
+            e_field = np.array(solver.observer.efield_profile, dtype=np.complex128)
+            output_field =  np.conj(np.interp(x, temp_grid.x, e_field[-1]))
+
+        else:
+            N_x = int(2 * (self.guide_x_coord + self.output_x_offset + 3 * self.width) / 0.1)
+
+            temp_grid = ComputationalGrid(
+                x_params=(
+                    self.guide_x_coord - self.output_x_offset - 3 * self.width,
+                    self.guide_x_coord + self.output_x_offset + 3 * self.width,
+                    N_x),
+                z_params=(self.branching_region_z[1], self.branching_region_z[1]+1, 1),
+                k_max=0.00)
+
+            guide = CombinedWaveguide(self.waveguide_base, [self.output_1, self.output_2], waveguide_additional=[])
+
+            beam = EigenModes(wavelength=self.beam.wavelength, waveguide=guide)
+            E1 = beam.calc_initial_field(temp_grid)
+
+            output_field = np.interp(x, temp_grid.x, E1)
+
+
+
+        return output_field
+
+    def compute_input_field(self, x):
+
         temp_grid = ComputationalGrid(
             x_params=(
-            self.guide_x_coord - self.output_x_offset - 5 * self.width,
-            self.guide_x_coord + self.output_x_offset + 5 * self.width,
-            self.x_params[2]),
-            z_params=(self.branching_region_z[1], self.z_params[1], self.z_params[2]),
-            k_max=0.00)
-
-        # waveguides for propagation in inverse z direction --------------------
-        waveguide_base = WaveguideBase(
-            refractive_index_medium=self.refractive_index_medium)
-
-        waveguide_output_1 = LinearWaveguide(
-            width=self.width,
-            refractive_index_guide=self.refractive_index_guide,
-            refractive_index_medium=0,
-            guide_x_coord=self.guide_x_coord + \
-                          self.output_x_offset + \
-                          np.cos(self.output_angle) * self.width / 2 + \
-                          self.guide_seperation / 2,
-            z_end=self.z_params[1], angle=-self.output_angle,
-            z_start=self.branching_region_z[1],
-            coord_mode="absolute")
-
-        waveguide_output_2 = LinearWaveguide(
-            width=self.width,
-            refractive_index_guide=self.refractive_index_guide,
-            refractive_index_medium=0,
-            guide_x_coord=self.guide_x_coord - \
-                          self.output_x_offset - \
-                          np.cos(self.output_angle) * self.width / 2 - \
-                          self.guide_seperation / 2,
-            z_end=self.z_params[1],
-            z_start=self.branching_region_z[1],
-            angle=self.output_angle,
-            coord_mode="absolute")
-
-        guide = CombinedWaveguide(
-            waveguide_base=waveguide_base, waveguide_additional=[],
-            waveguide_input=[waveguide_output_1, waveguide_output_2])
-        
-        # beam for reversed propagation ----------------------------------------
-        beam = EigenModes(wavelength=self.beam.wavelength, waveguide=guide,
-                          rel_strength=[0.5, 0.5],
-                          phase_shift=[0, 0])
-
-        # propagate in reversed direction --------------------------------------
-        solver = Chung1990Solver(computational_grid=temp_grid,
-                                 waveguide=guide, beam=beam)
-        solver.run_simulation()
-
-        # conjugate and interpolate the electric field at the output -----------
-        e_field = solver.observer.efield_profile
-        output_field =  np.interp(x, temp_grid.x, np.conj(e_field[-1]))
-
-        temp_grid = ComputationalGrid(
-            x_params=(
-            self.guide_x_coord - self.output_x_offset - 5 * self.width,
-            self.guide_x_coord + self.output_x_offset + 5 * self.width,
-            self.x_params[2]),
+                self.guide_x_coord - self.output_x_offset - 5 * self.width,
+                self.guide_x_coord + self.output_x_offset + 5 * self.width,
+                self.x_params[2]),
             z_params=(0, 1, 1),
             k_max=0.00)
         E0 = self.beam.calc_initial_field(temp_grid)
         input_field = np.interp(x, temp_grid.x, E0)
-
-        return input_field, output_field, temp_grid.n_eff
+        return input_field, temp_grid.n_eff
 
     def write_waveguide(self, computational_grid):
         """Write the waveguide structure into the grid and calculate the index
@@ -258,6 +302,7 @@ class optimizedYjunction(CombinedWaveguide):
         ----------
         computational_grid : ComputationalGrid
         """
+
         super().write_waveguide(computational_grid)
         self.index_calc.write_waveguide(computational_grid)
 

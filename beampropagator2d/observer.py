@@ -55,7 +55,7 @@ class Observer:
         self._calc_efield_intensity_in_guide(E, self.dx)
         self._modeMismatchLoss(self.dx, E0, E)
         self._correlationFunction(self.dx, E0, E)
-        self._powerAttenuation(self.efield_intensity[self._propation_step])
+        self._powerAttenuation(self.efield_intensity_in_guide[self._propation_step])
         self._propation_step += 1
 
     def _calc_efield_intensity(self, current_E_field, dx):
@@ -130,7 +130,7 @@ class Observer:
         """
 
         self.alpha[self._propation_step] = (10. * np.log10(efield_intensity
-                                          / self.efield_intensity[0]))
+                                          / self.efield_intensity_in_guide[0]))
     # --------- End of Code by Oliver Melchert ---------------------------------
 
     def dump_data(self, fName):

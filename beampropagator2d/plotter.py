@@ -2,26 +2,48 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from cycler import cycler
 
 from .beampropagater import *
 from .indexcalculator import *
 from .optimizedYjunction import *
+import os
+
+# ------------------------------------------------------------------------------
+
+#   LATEX IMPLEMENTATION TAKEN FROM http://bkanuka.com/posts/native-latex-plots/
+#   BY BENNETT KANUKA^
+
+# ------------------------------------------------------------------------------
 
 
 class Plotter:
-    """Class that handles all plotting of propagation data"""
+    """Class that handles all plotting of propagation data. Call plt.show() in
+    non-latex mode or plotter.savefig(filename) in latex mode to get final
+    plots"""
+
 
     def __init__(self, filepath=None, use_tex=True):
         self.filepath = "test" if filepath is None else filepath
+        self.use_tex = False
         if use_tex:
-            self.x_label = r"Transversal direction $x$ in $\si{\micro\meter}$"
-            self.z_label = r"Propagation direction $z$ in $\si{\micro\meter}$"
-        else:
-            self.x_label = r"Transversal direction $x$"
-            self.z_label = r"Propagation direction $z$"
-        self.use_tex = use_tex
-        if use_tex:
-            self.tex_setup()
+            try:
+                out = os.system("gdanj -h")
+                if out != 0:
+                    print("Latex depedency not satisfied (calling *latex -help* failed)")
+                    print("Dafaulting to no latex usage")
+                    raise Exception()
+                else:
+                    self.use_tex = True
+                    self.tex_setup()
+
+                    self.x_label = r"Transversal direction $x$ in $\si{\micro\meter}$"
+                    self.z_label = r"Propagation direction $z$ in $\si{\micro\meter}$"
+            except Exception:
+                self.x_label = r"Transversal direction $x$"
+                self.z_label = r"Propagation direction $z$"
+
+
 
     def tex_setup(self):
 
@@ -59,9 +81,9 @@ class Plotter:
 
             "pgf.preamble": [
 
-                r"\usepackage[utf8x]{inputenc}",  # use utf8 fonts becasue your computer can handle it :)
+                r"\usepackage[utf8x]{inputenc}",
 
-                r"\usepackage[T1]{fontenc}",  # plots will be generated using this preamble
+                r"\usepackage[T1]{fontenc}",
                 
                 r"\usepackage{siunitx}"
 
@@ -71,18 +93,7 @@ class Plotter:
 
         mpl.rcParams.update(pgf_with_latex)
 
-
-    def backend(self, filename):
-
-        if self.use_tex:
-            self.savefig(filename)
-        else:
-            plt.show()
-
     def newfig(self, nrows=1, ncols=1, width=1, ratio=2, gridspec_kw=None):
-
-        #plt.clf()
-    
 
         fig, ax = plt.subplots(nrows=nrows, ncols=ncols,figsize=self.figsize(width, ratio), gridspec_kw=gridspec_kw)
 
@@ -109,12 +120,10 @@ class Plotter:
 
         return fig_size
 
-    def _plot_mode_loss_mismath(self, z, lm):
-        plt.plot(z, lm)
-        plt.show()
 
     def _plot_power_attenuation(self, z, alpha):
-        fig,ax = plt.subplots()
+
+        fig, ax = self.newfig(1,1,1,2)
 
         ax.plot(z, alpha)
 
@@ -127,7 +136,6 @@ class Plotter:
         ax.spines['top'].set_color('none')
         ax.spines['right'].set_color('none')
 
-        plt.show()
 
     def plot_index_distribution(self, obj):
         if isinstance(obj, BeamPropagator2D):
@@ -147,7 +155,6 @@ class Plotter:
         cbar = fig.colorbar(im, cax=cax)
         cbar.ax.set_ylabel(r'Refractive index')
         ax.legend(loc=4)
-        self.backend(self.filepath + "_grid_i_d")
 
 
 
@@ -162,7 +169,6 @@ class Plotter:
         ax.set_xlabel(self.x_label)
         ax.set_ylabel(r'Power attenuation $\frac{P_0}{P_z}$ in $db$')
 
-        self.backend(self.filepath + "_power_atten")
 
 
     def plot_crosssection(self, beam_propagator, z):
@@ -194,7 +200,6 @@ class Plotter:
         lines, labels = ax.get_legend_handles_labels()
         lines2, labels2 = ax1.get_legend_handles_labels()
         ax.legend(lines + lines2, labels + labels2, loc=0)
-        self.backend(self.filepath + "_c_s_z_{}".format(z))
 
 
     def _plot_index_profile(self, ax, computational_grid):
@@ -208,9 +213,9 @@ class Plotter:
     def _waveguide_overlay(self, ax, computational_grid):
         x = computational_grid.x
         z = computational_grid.z
-        n_xz = computational_grid.n_xz
-        im = ax.contour(x, z, np.transpose(n_xz), cmap='Greys', levels=0,
-                        linestyles='-')
+        n_xz = np.real(computational_grid.n_xz)
+        im = ax.contour(x, z, np.transpose(n_xz), colors="w",
+                        linestyles='-', linewidths=0.1)
 
         return im
 
@@ -218,7 +223,7 @@ class Plotter:
         x = computational_grid.x
         z = computational_grid.z
         mask = computational_grid.waveguide_mask
-        im = ax.contour(x, z, np.transpose(mask), cmap='Greys', levels=0,
+        im = ax.contour(x, z, np.transpose(mask), colors="w", levels=0,
                         linestyles='dashed', linewidths=0.5)
 
         for i in im.collections:
@@ -239,35 +244,34 @@ class Plotter:
 
         return im
 
-    def plot_field_waveguide_overlay(self, beam_propagator, colorbar=True, x_label=True, z_label=True, index_plot=True):
+    def plot_field_waveguide_overlay(self, beam_propagator, colorbar=True, x_label=True, z_label=True, index_plot=False, index_legend=False, ax=None, fig=None):
 
-        #gridspec_kw={'height_ratios':[5, 1]}
 
-        fig, ax = self.newfig(1, 1, 0.5, 1.25)
+        if ax is None:
+            fig, ax = self.newfig(1, 1, 0.5, 1.7)
 
 
         im_field = self._plot_field(ax, beam_propagator)
-        #im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
+        im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
         im_w_mask = self._waveguide_mask_overlay(ax, beam_propagator.computational_grid)
         im_b_mask = self._boundary_mask_overlay(ax, beam_propagator.computational_grid)
         divider = make_axes_locatable(ax)
 
         if index_plot:
             ax2 = divider.append_axes("top", size=0.2, pad=0.1)
-            re = beam_propagator.computational_grid.n_xz[:,0]
-            ax2.plot(beam_propagator.computational_grid.x, beam_propagator.computational_grid.n_xz[:,-1], label=r"$\text{Re}(n)$", linewidth=1)
+            re = beam_propagator.computational_grid.n_xz[:-1]
+            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}(n)$", linewidth=1)
             ax2.set_xlim(beam_propagator.computational_grid.x_min, beam_propagator.computational_grid.x_max)
-            ax2.set_ylim(np.amin(re) - 0.1*(np.amax(re) - np.amin(re)), np.amax(re) + 0.1*(np.amax(re) - np.amin(re)))
+            ax2.set_ylim(1.499, 1.504)
             ax2.set_xticklabels([])
             ax2.set_yticks([])
+            if index_legend:
+                ax2.legend(bbox_to_anchor=(1.01, 0.5), fancybox=False, loc="center left", frameon=False)
 
-            ax2.legend()
-
-            #ax.legend(loc=4)
         if colorbar:
-            cax = divider.append_axes("right", size="3%", pad=0.1)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = fig.colorbar(im_field, cax=cax)
-            cbar.ax.set_ylabel(r'Field Intensity')
+            cbar.ax.set_ylabel(r'Normalized field intensity')
 
 
 
@@ -277,7 +281,7 @@ class Plotter:
         if z_label:
             ax.set_ylabel(self.z_label)
         plt.tight_layout()
-        self.backend(self.filepath + "_p_b_w_o")
+
 
     def plot_interpolated_field(self, obj):
         if isinstance(obj, optimizedYjunction):
@@ -299,7 +303,6 @@ class Plotter:
         cbar = fig.colorbar(im_field, cax=cax)
         cbar.ax.set_ylabel(r'Field Intensity')
         
-        self.backend(self.filepath + "interp_field")
 
     def plot_ideal_index_distribution(self, obj):
 
@@ -341,40 +344,68 @@ class Plotter:
         ax1.set_title(r'Real part of the index distribution')
         ax2.set_title(r'Imaginary part of the index distribution')
         plt.tight_layout()
-        self.backend(self.filepath + "_ideal_dist")
 
-    def plot_trimmed_index_distribution(self, obj):
+    def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True):
 
         if isinstance(obj, optimizedYjunction):
-            index_calculator = obj.index_calculator
+            index_calculator = obj.index_calc
         elif isinstance(obj, IndexCalculator):
             index_calculator = obj
+        elif isinstance(obj, BeamPropagator2D):
+            index_calculator = obj.waveguide.index_calc
 
-        fig, ax = plt.subplots()
+        if ax is None:
+            fig, ax = plt.subplots()
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
 
 
-        im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
-                                 index_calculator.trimmed_index_distribution,
-                                cmap='magma')
 
-        cbar = fig.colorbar(im_index, ax=ax)
-        cbar.ax.set_ylabel(r'Refractive index $n$')
+
+        im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
+                                 np.transpose(index_calculator.trimmed_index_distribution),
+                                cmap='hot', vmin=1.5, vmax=1.527)
+        if colorbar:
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = fig.colorbar(im_index, cax=cax)
+            cbar.ax.set_ylabel(r'$Re(n)$')
+        if x_label:
+            ax.set_xlabel(self.x_label)
+
+    def plot_phase_fronts(self, beam_propagator, ax=None, mask=False):
+        if ax is None:
+            fig, ax = self.newfig(1, 1, 0.5, 1.7)
+
+
+        im_phase = self._plot_phase_fronts(ax, beam_propagator)
+        if mask:
+            im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
+
 
         ax.set_xlabel(self.x_label)
         ax.set_ylabel(self.z_label)
-
-        self.backend(self.filepath + "_trimmed_dist")
+        plt.tight_layout()
 
     def _plot_field(self, ax, beam_propagator):
         x_min, x_max = beam_propagator.computational_grid.x[0], beam_propagator.computational_grid.x[-1]
         z_min, z_max = beam_propagator.computational_grid.z[0], beam_propagator.computational_grid.z[-1]
         field = np.abs(beam_propagator.observer.efield_profile)**2
-        im = ax.pcolorfast((x_min, x_max), (z_min, z_max), field,
-                           #norm=colors.SymLogNorm(linthresh=0.03, linscale=0.5,
-                           #),
+        im = ax.pcolorfast((x_min, x_max), (z_min, z_max), field, vmin=0, vmax=0.25,
                            cmap='inferno')
         return im
+
+    def _plot_phase_fronts(self, ax, beam_propagator):
+        x_min, x_max = beam_propagator.computational_grid.x[0], beam_propagator.computational_grid.x[-1]
+        z_min, z_max = beam_propagator.computational_grid.z[0], beam_propagator.computational_grid.z[-1]
+        mod = np.transpose(np.exp(-1j * beam_propagator.computational_grid.xz_mesh[
+            1] * beam_propagator.beam.wavenumber * beam_propagator.computational_grid.n_eff))
+        mod_field = mod * beam_propagator.observer.efield_profile
+        masked_phase_fronts = np.angle(mod_field) * np.transpose(beam_propagator.computational_grid.waveguide_mask)
+        im = ax.pcolorfast((x_min, x_max), (z_min, z_max), masked_phase_fronts,
+                           cmap="twilight_shifted")
+        return im
+
+
 

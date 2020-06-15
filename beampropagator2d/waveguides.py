@@ -98,12 +98,12 @@ class ComputationalGrid:
                                               self.x <= self.x_max - self.delta),
                                self.x > self.x_max - self.delta],
                               [lambda x: -self.k_max * (erf(
-                                  ((x - self.x_min) * 2.2 / self.delta)) - erf(
-                                  2.2)),
+                                      ((x - self.x_min) * 2/ self.delta)) - erf(
+                                  2)),
                                0,
                                lambda x: self.k_max * (-erf(
-                                   ((self.x_max - x) * 2.2 / self.delta)) + erf(
-                                   2.2))])
+                                   ((self.x_max - x) * 2 / self.delta)) + erf(
+                                   2))])
         self.boundary_mask[self.k == 0] = 1
 
     def dump_data(self, filepath):
@@ -174,7 +174,7 @@ class WaveguideBase:
 
     def __init__(self, rel_index_profile=None,
                  refractive_index_medium=3.3, refractive_index_guide=3.33,
-                 coord_mode="relative", effective_width=1):
+                 coord_mode="relative"):
         """Stores the parameters and provides methods for
         writing a general waveguide structure into a
         computational grid.
@@ -206,7 +206,6 @@ class WaveguideBase:
         else:
             print("# Structure has a custom refractive index profile")
         # OPTICAL PROPERTIES OF SYSTEM
-        self.effective_width = effective_width
         self.write_mask = 1
         self.coord_mode = coord_mode
         self.refractive_index_medium = refractive_index_medium
@@ -239,7 +238,7 @@ class WaveguideBase:
             computational_grid)
 
         # and a write a mask for the waveguide used for various purposes
-        if self.write_mask != 0:
+        if self.write_mask and hasattr(self, "effectice_width"):
             computational_grid.waveguide_mask[np.abs(distances_from_center) <= \
                                               self.effective_width] = self.write_mask
 
@@ -304,6 +303,11 @@ class LinearWaveguide(WaveguideBase):
             Defaults to the structure center.
         width : float
             width of the waveguide in question.
+        effective_width : float
+            The effective width of the waveguide, relative to the guides width
+            i.e. the region around the waveguide that is to be
+            considered in the calculation of the guided intensity. Defaults to
+            w_eff = 2
         angle : float
             Angle of the guide with the z-axis. Needs to be in the Interval
             (-pi/4, pi/4), although the limits of the paraxial approximation
@@ -326,7 +330,7 @@ class LinearWaveguide(WaveguideBase):
         super().__init__(rel_index_profile=rel_index_profile,
                          refractive_index_medium=refractive_index_medium,
                          refractive_index_guide=refractive_index_guide,
-                         coord_mode=coord_mode, effective_width=effective_width)
+                         coord_mode=coord_mode)
 
         # structure identifiers
         self.form = "Linear Wave Guide"
@@ -334,6 +338,7 @@ class LinearWaveguide(WaveguideBase):
 
         # spacial structure parameters
         self.width = width
+        self.effective_width = effective_width
         self.guide_x_coord = guide_x_coord
         self.z_region = np.array([z_start, z_end])
 
@@ -490,14 +495,16 @@ class Triangle(WaveguideBase):
         norms_3 = norms[2] * norms[0]
 
         # compute angles and their sum
-        angles_1 = np.arccos(prods_1 / norms_1)
-        angles_2 = np.arccos(prods_2 / norms_2)
-        angles_3 = np.arccos(prods_3 / norms_3)
+        with np.errstate(invalid='ignore'): # ignore nan-values
+            angles_1 = np.arccos(prods_1 / norms_1)
+            angles_2 = np.arccos(prods_2 / norms_2)
+            angles_3 = np.arccos(prods_3 / norms_3)
 
         angle_sum = angles_1 + angles_2 + angles_3
 
         # write a boolean mask for the grid
-        in_triangle_temp = np.where(np.abs(angle_sum - 2 * np.pi) < 1e-2, 0, np.infty)
+        with np.errstate(invalid='ignore'): # ignore nan-values
+            in_triangle_temp = np.where(np.abs(angle_sum - 2 * np.pi) < 1e-2, 0, np.infty)
 
         in_triangle = np.infty * np.ones(xv_temp.shape)
         # reincorporate that mask into the whole picture
@@ -510,7 +517,7 @@ class BendedWaveguide(WaveguideBase):
 
     def __init__(self, rel_index_profile=None, refractive_index_guide=3.33,
                  refractive_index_medium=3.3,
-                 width=1, profile='step profile', x_start=0.5, x_end=0.65,
+                 width=1, effective_width = 2, profile='step profile', x_start=0.5, x_end=0.65,
                  z_start=0, z_end=1, bend_start=.25,
                  bend_end=.75, coord_mode="relative"):
         """
@@ -535,14 +542,20 @@ class BendedWaveguide(WaveguideBase):
             refractive index of the medium surrounding the waveguide.
             Used if no rel_index_profile is specified. Defaults to n = 3.33.
         x_start : float
-            starting x coordinate of the waveguide. Defaults to the structure center.
+            The starting x coordinate of the waveguide. Defaults to the structure center.
         x_end : float
-            ending x coordinate of the waveguide. Defaults .65 of the x direction.
+            The ending x coordinate of the waveguide. Defaults .65 of the x direction.
         bend_start : float
-            starting z coordinate of the bended region
+            The starting z coordinate of the bended region.
         bend_end : float
-            ending z coordinate of the bended region
-        width : float width of the waveguide in question.
+            The ending z coordinate of the bended region.
+        width : float
+            The width of the waveguide in absolute units.
+        effective_width : float
+            The effective width of the waveguide, relative to the guides width
+            i.e. the region around the waveguide that is to be
+            considered in the calculation of the guided intensity. Defaults to
+            w_eff = 2
         profile : str
             Type of the Waveguide. Possible types are "step profile", "continuous profile",
             "custom profile".
@@ -562,6 +575,7 @@ class BendedWaveguide(WaveguideBase):
         self.x_end = x_end
         self.refractive_index_guide = refractive_index_guide
         self.width = width
+        self.effective_width = effective_width
         self.bended_region = np.array([bend_start, bend_end])
         self.z_start = z_start
         self.z_end = z_end

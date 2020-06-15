@@ -17,6 +17,7 @@ from .waveguides import *
 
 
 
+
 class Beam:
     """ A parentclass for classes providing methods to compute the initial
     electric field for different types of beams propagateable by 2D FD-BPM
@@ -122,7 +123,6 @@ class GaussianBeam(Beam):
         rel_strength : float
             the beams intensity is normalized and can be rescaled through this attribute
         """
-        log.info("Propagating Gaussian Beam")
         super().__init__(wavelength)
         self.x_coord = x_coord
         self.width = width
@@ -133,9 +133,6 @@ class GaussianBeam(Beam):
         self.coord_mode = coord_mode
         self.order = np.zeros(order + 1)
         self.order[order] = 1
-        log.info("Beam width = {}, x-coordinate = {}, offset = {}".format(width,
-                                                                          x_coord,
-                                                                          offset))
 
     def _calc_initial_field(self, computational_grid: ComputationalGrid) -> np.ndarray:
         """Calculates the field of the Hermite-Gaussian mode
@@ -393,8 +390,6 @@ class EigenModes(Beam):
         x_params = computational_grid.x_min, computational_grid.x_max, computational_grid.N_x
         E0 = np.zeros(computational_grid.N_x, dtype=np.complex64)
 
-
-
         temp_grid = ComputationalGrid(x_params, (computational_grid.z_min,
                                                  computational_grid.z_max, 1),
                                       0, 0)
@@ -422,19 +417,16 @@ class EigenModes(Beam):
                 traceback.print_exc()
                 exit()
             print(
-                "# Selected mode {} with effective refractive index n = {}".format(
-                    mode,
-                    computational_grid.n_eff))
+                "# Selected mode {}".format(
+                    mode))
             return E, n_eff
 
         if self.waveguide.form == "Combined Waveguide":
             # calculate the modes for each input waveguide seperately
 
-            # create a temporary grid for seperate calculation
-
             for i, guide in enumerate(self.waveguide.waveguide_input):
+
                 # write the input guide into the temp grid
-                #print("# Writing waveguide {} for mode calculation".format(guide.__name__))
                 self.waveguide.waveguide_base.write_waveguide(temp_grid)
                 # if waveguide has angle, set angle 0 temporarily for mode
                 # calculation
@@ -459,7 +451,9 @@ class EigenModes(Beam):
                 print("# Calculating Modes")
                 E, computational_grid.n_eff = calc_mode_and_check_existance(temp_grid, offset, mode)
 
-                norm = np.sqrt(np.trapz(np.abs(E) ** 2, dx=computational_grid.dx))
+                print("# Selected mode has effective refractive index n_0 = {}".format(computational_grid.n_eff))
+
+                norm = np.trapz(np.abs(E) ** 2, dx=computational_grid.dx)
 
                 try:
                     strength = self.rel_strength[i]
@@ -484,7 +478,9 @@ class EigenModes(Beam):
                                 / np.sqrt(1 + 1 / np.tan(angles) ** 2)
                                 * (computational_grid.x - guide.guide_x_coord))
                 E0 += E / norm * strength * np.exp(phases * 1j)
-            return E0
+            norm = np.sqrt(np.trapz(np.abs(E0) ** 2, dx=computational_grid.dx))
+
+            return E0 / norm
 
         else:
             if hasattr(self.waveguide, "angle"):
@@ -501,6 +497,8 @@ class EigenModes(Beam):
             # calculate guided mode at input
             print("# Calculating Modes")
             E0, computational_grid.n_eff = calc_mode_and_check_existance(temp_grid, self.offset, self.selected_mode)
+            print("# Selected mode has effective refractive index n_0 = {}".format(computational_grid.n_eff))
+
             norm = np.sqrt(np.trapz(np.abs(E0) ** 2, dx=computational_grid.dx))
             if hasattr(self.waveguide, "angle") and angle != 0:
                 if angle < 0:
@@ -515,7 +513,7 @@ class EigenModes(Beam):
 
 
     # ---------------------------------------------------------------------------------------
-    # THE FOLLOWING CODE WAS WRITTEN BY OLIVER MELCHERT
+    # THE FOLLOWING CODE WAS WRITTEN BY OLIVER MELCHERT, MODIFIED BY JASPER MARTINS
     # ---------------------------------------------------------------------------------------
 
     def _determine_guided_modes(self, computational_grid, offset):
@@ -556,37 +554,37 @@ class EigenModes(Beam):
         # IMPLEMENTS MODE OPERATOR FOR TE POLARIZED FIELD - EQ. (2.7) OF REF. [1]
 
         # reduce accuracy for mode calculation and interpolate the resulting array
-        max_steps = 2000
+        max_steps = 400
         steps = computational_grid.N_x / max_steps
         if steps > 1:
             steps = int(steps)
         else:
             steps = 1
-
         x, dx = computational_grid.x[::steps], computational_grid.dx * steps
         k0 = self.wavenumber
-        nx0 = computational_grid.n_xz[::steps, 0]
+        nx0 = np.real(computational_grid.n_xz[::steps, 0])
         nb = nx0[0]
-        modeOperatorTE = np.diag(
-            -2.0 * np.ones(x.size) / dx / dx / k0 / k0 + nx0 * nx0, 0) + \
-                         np.diag(np.ones(x.size - 1) / dx / dx / k0 / k0, 1) + \
-                         np.diag(np.ones(x.size - 1) / dx / dx / k0 / k0, -1)
+        n_max = np.amax(nx0)
+
+        diag = -2.0 * np.ones(x.size) / dx / dx / k0 / k0 + nx0 * nx0
+        off_diag = np.ones(x.size - 1) / dx / dx / k0 / k0
 
         # BEARING IN MIND THAT MODE OPERATOR IS SELF-ADJOINT, AN ALGEBRAIC SOLUTION
         # PROCEDURE FOR HERMITIAN MATRICES (NUMPYS EIGH) CAN BE EMPLOYED
-        eigVals, eigVecs = sp.linalg.eigh(modeOperatorTE, overwrite_a=True)
+        eigVals, eigVecs = sp.linalg.eigh_tridiagonal(diag, off_diag, select='v', select_range=(nb * nb, n_max * n_max))
         # FILTER FOR ALL EIGENVALUES THAT ARE LARGER THAN THE REFRACTIVE INDEX
-        # AT INFINITY. OTHERWISE, THE RESPECTIVE EIGENVECTORS WOULD BE OF
+        # AT INFINITY. OTHERWISE, THE RESPECTIVE EIGENVECT  ORS WOULD BE OF
         # OSCILLATING TYPE AT INFITY, PREVENTING NORMALIZATION
         TEList = []
         myFilter = eigVals > nb * nb
         for i in range(eigVals.size):
             if myFilter[i]:
+                print(np.sqrt(eigVals[i]))
                 fac = 1. / np.sqrt(dx) if eigVecs[:,
                                           i].sum() > 0 else -1 / np.sqrt(dx)
                 TEList.append((np.sqrt(eigVals[i]),
                                np.interp(computational_grid.x, x + offset,
-                                         fac * eigVecs[:, i])))
+                                         fac * np.array(eigVecs[:, i], dtype=np.complex64))))
 
         return sorted(TEList, key=lambda x: x[0], reverse=True)
 
