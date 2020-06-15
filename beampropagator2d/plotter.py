@@ -8,6 +8,7 @@ from .beampropagater import *
 from .indexcalculator import *
 from .optimizedYjunction import *
 import os
+import subprocess
 
 # ------------------------------------------------------------------------------
 
@@ -28,18 +29,16 @@ class Plotter:
         self.use_tex = False
         if use_tex:
             try:
-                out = os.system("gdanj -h")
-                if out != 0:
-                    print("Latex depedency not satisfied (calling *latex -help* failed)")
-                    print("Dafaulting to no latex usage")
-                    raise Exception()
-                else:
-                    self.use_tex = True
-                    self.tex_setup()
+                subprocess.check_call("latex -help")
+                self.use_tex = True
+                self.tex_setup()
 
-                    self.x_label = r"Transversal direction $x$ in $\si{\micro\meter}$"
-                    self.z_label = r"Propagation direction $z$ in $\si{\micro\meter}$"
-            except Exception:
+                self.x_label = r"Transversal direction $x$ in $\si{\micro\meter}$"
+                self.z_label = r"Propagation direction $z$ in $\si{\micro\meter}$"
+            except:
+
+                print("Latex depedency not satisfied (calling *latex -help* failed)")
+                print("Dafaulting to no latex usage")
                 self.x_label = r"Transversal direction $x$"
                 self.z_label = r"Propagation direction $z$"
 
@@ -359,9 +358,6 @@ class Plotter:
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
-
-
-
 
         im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
                                  np.transpose(index_calculator.trimmed_index_distribution),

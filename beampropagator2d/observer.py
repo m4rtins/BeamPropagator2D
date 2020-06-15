@@ -28,13 +28,17 @@ class Observer:
 
         self.x_size = computational_grid.N_x
         self.z_size = computational_grid.N_z
-        self.efield_intensity = np.zeros(self.z_size, dtype=np.longdouble)
-        self.efield_intensity_in_guide = np.zeros(self.z_size, dtype=np.longdouble)
-        self.efield_profile = np.zeros((self.z_size, self.x_size), dtype=np.clongdouble)
+
+
+        self.efield_power = np.zeros(self.z_size, dtype=np.double)
+        self.efield_power_in_guide = np.zeros(self.z_size, dtype=np.double)
+        self.efield_profile = np.zeros((self.z_size, self.x_size), dtype=np.cdouble)
         self.mode_loss_mismatch = np.zeros(self.z_size, dtype=np.double)
         self.P1 = np.zeros(self.z_size, dtype=np.double)
         self.alpha = np.zeros(self.z_size, dtype=np.double)
         self._propation_step = 0
+
+
 
     def measure(self, current_E_field):
         """Frontend handler for the calculation and collection of the
@@ -47,27 +51,26 @@ class Observer:
 
         """
 
-
         E = current_E_field
         self.efield_profile[self._propation_step] = E
         E0 = self.efield_profile[0]
-        self._calc_efield_intensity(E, self.dx)
-        self._calc_efield_intensity_in_guide(E, self.dx)
+        self._calc_efield_power(E, self.dx)
+        self._calc_efield_power_in_guide(E, self.dx)
         self._modeMismatchLoss(self.dx, E0, E)
         self._correlationFunction(self.dx, E0, E)
-        self._powerAttenuation(self.efield_intensity_in_guide[self._propation_step])
+        self._powerAttenuation(self.efield_power_in_guide[self._propation_step])
         self._propation_step += 1
 
-    def _calc_efield_intensity(self, current_E_field, dx):
+    def _calc_efield_power(self, current_E_field, dx):
         b_mask = self.computational_grid.boundary_mask
-        self.efield_intensity[self._propation_step] = np.trapz(
+        self.efield_power[self._propation_step] = np.trapz(
             np.abs(current_E_field*b_mask) ** 2, dx=dx)
 
-    def _calc_efield_intensity_in_guide(self, current_E_field, dx):
+    def _calc_efield_power_in_guide(self, current_E_field, dx):
         w_mask = self.computational_grid.waveguide_mask
         b_mask = self.computational_grid.boundary_mask
         masked_field = current_E_field * w_mask[:,self._propation_step] * b_mask 
-        self.efield_intensity_in_guide[self._propation_step] = np.trapz(
+        self.efield_power_in_guide[self._propation_step] = np.trapz(
                                             np.abs(masked_field) ** 2, dx=dx)
 
     # code below this marking taken from Oliver Melchert (modified)
@@ -112,7 +115,7 @@ class Observer:
         """
         self.P1[self._propation_step] = np.real(np.trapz(E0 * np.conj(E), dx=dx))
 
-    def _powerAttenuation(self, efield_intensity):
+    def _powerAttenuation(self, efield_power):
         """power attenuation
 
         Implements power attenuation following Ref. [1]
@@ -129,8 +132,8 @@ class Observer:
 
         """
 
-        self.alpha[self._propation_step] = (10. * np.log10(efield_intensity
-                                          / self.efield_intensity_in_guide[0]))
+        self.alpha[self._propation_step] = (10. * np.log10(efield_power
+                                                           / self.efield_power_in_guide[0]))
     # --------- End of Code by Oliver Melchert ---------------------------------
 
     def dump_data(self, fName):
@@ -142,12 +145,11 @@ class Observer:
             filename (including path) to which ascii output
                 should be written
         """
-        log.info("Dumping field data to {}_field_field.npy".format(fName))
-        fName += "_obs"
+        print("# Dumping field data to {}_field_field.npy".format(fName))
         np.save(fName + "_field", self.efield_profile)
         np.save(fName + "_mlm", self.mode_loss_mismatch)
-        np.save(fName + "_field_intensity", self.efield_intensity)
-        np.save(fName + "_field_int_in_guide", self.efield_intensity)
+        np.save(fName + "_field_power", self.efield_power)
+        np.save(fName + "_field_int_in_guide", self.efield_power)
         np.save(fName + "_power_atten", self.P1)
         np.save(fName + "_alpha", self.alpha)
 
@@ -155,9 +157,17 @@ class Observer:
 
         self.efield_profile = np.load(filepath + "_field.npy")
         self.mode_loss_mismatch = np.load(filepath + "_mlm.npy")
-        self.efield_intensity = np.load(filepath + "_efield_intensity.npy")
-        self.efield_intensity_in_guide = np.load(filepath + "_calc_efield_intensity_in_guide.npy")
+        self.efield_power = np.load(filepath + "_efield_power.npy")
+        self.efield_power_in_guide = np.load(filepath + "_calc_efield_power_in_guide.npy")
         self.P1 = np.load(filepath + "_power_atten.npy")
         self.alpha = np.load(filepath + "_alpha.npy")
 
-    # TODO: Write function saving observables to text file
+    def dump_to_text(self, fName):
+        print("# Dumping field data to {}_field_field.txt".format(fName))
+        np.savetxt(fName + "_field.txt", self.efield_profile)
+
+        additional_data = np.array(list(zip(self.efield_power, self.efield_power_in_guide,
+                                            self.P1, self.alpha, self.mode_loss_mismatch)))
+
+        np.savetxt(fName + "_additional.txt", additional_data,
+                   header="Power Guided_power Correlation Power_attennuation Mode_loss_missmatch")

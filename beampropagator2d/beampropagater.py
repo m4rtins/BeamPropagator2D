@@ -89,12 +89,14 @@ class BeamPropagator2D:
         raise NotImplementedError
 
     def dump_data(self, filepath):
-        log.info("Dumping BeamPropagator Data")
+        print("# Dumping BeamPropagator Data")
         self.computational_grid.dump_data(filepath + "_grid")
-        self.beam.dump_data(filepath + "_beam")
         self.observer.dump_data(filepath + "_obs")
 
-
+    def dump_to_text(self, filepath):
+        print("# Dumping BeamPropagator data to txt files")
+        self.computational_grid.dump_to_txt(filepath)
+        self.observer.dump_to_text(filepath)
 
 class Chung1990Solver(BeamPropagator2D):
     """Provides a finite difference beam propagation method following the

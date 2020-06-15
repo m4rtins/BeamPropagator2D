@@ -16,8 +16,6 @@ from typing import Union, Iterable
 from .waveguides import *
 
 
-
-
 class Beam:
     """ A parentclass for classes providing methods to compute the initial
     electric field for different types of beams propagateable by 2D FD-BPM
@@ -46,7 +44,6 @@ class Beam:
         self.wavenumber = 2. * np.pi / wavelength
         print("Initializing beam with wavelength l = {}, k = {}".format(self.wavelength, self.wavenumber))
 
-
     def calc_initial_field(self, computational_grid=None):
         print("{} {} {}".format(5 * "#", self.__class__.__name__, (95 - len(self.__class__.__name__)) * "#"))
         print("# Started calculating intial field profile")
@@ -54,33 +51,9 @@ class Beam:
         print("# Finished field calculation")
         print(100 * "#")
         return E0
+
     def _calc_initial_field(self, computational_grid):
         raise NotImplementedError
-
-    def dump_data(self, filepath):
-        """ Dump the beam data into the specified filepath"""
-
-        log.info("Dumping Beam Config to {}".format(filepath))
-        f = open(filepath + ".dat", "w")
-        self._dump_data(f)
-        f.close()
-
-    def read_data(self, filepath):
-        log.info("Reading beam config from {}".format(filepath))
-        f = open(filepath + ".dat", "r")
-        self._read_data(f)
-        f.close()
-
-    def _read_data(self, fStream):
-        fStream.readline()
-        line = fStream.readline()
-        line = line.split(" ")
-        self.wavelength = float(line[0])
-        self.wavenumber = float(line[1])
-
-    def _dump_data(self, fStream):
-        fStream.write("lambda k\n")
-        fStream.write(str(self.wavelength) + " " + str(self.wavenumber) + "\n")
 
 
 class GaussianBeam(Beam):
@@ -179,21 +152,6 @@ class GaussianBeam(Beam):
         E = E / norm * self.rel_strength
         return E
 
-    # def _read_data(self, fStream):
-    #     fStream.readline()
-    #     super()._read_data(fStream)
-    #     fStream.readline()
-    #     lines = fStream.readline().split(" ")
-    #     self.width = float(lines[0])
-    #     self.x_coord = float(lines[1])
-    #     self.offset = float(lines[2])
-
-    def _dump_data(self, fStream):
-        fStream.write("Mode: Gaussian\n")
-        super()._dump_data(fStream)
-        fStream.write("width x-coord offset\n")
-        fStream.write(
-            "{} {} {}\n".format(self.width, self.x_coord, self.offset))
 
 
 class GaussianBeams(Beam):
@@ -275,24 +233,6 @@ class GaussianBeams(Beam):
                 GaussianBeam(wavelength, orders, coord_mode, i, offsets,
                              widths, phase_shifts, angles, rel_strengths))
 
-    # def _read_data(self, fStream):
-    #     fStream.readlines()
-    #     super()._read_data(fStream)
-    #     fStream.readlines()
-    #     self.beams = []
-    #     for line in fStream:
-    #         lines = line.split(" ")
-    #         width = float(lines[0])
-    #         x_coord = float(lines[1])
-    #         offset = float(lines[2])
-    #         self.beams.append(GaussianBeam(self.wavelength, x_coord, width, offset))
-
-    def _dump_data(self, fStream):
-        fStream.write("Mode: Gaussian\n")
-        super()._dump_data(fStream)
-        fStream.write("width x-coord offset\n")
-        for i in self.beams:
-            fStream.write("{} {} {}\n".format(i.width, i.x_coord, i.offset))
 
     def _calc_initial_field(self, computational_grid: ComputationalGrid) -> np.ndarray:
         """ Performs GaussianBeam._calc_initial_field for each Beam in instance
@@ -393,6 +333,7 @@ class EigenModes(Beam):
         temp_grid = ComputationalGrid(x_params, (computational_grid.z_min,
                                                  computational_grid.z_max, 1),
                                       0, 0)
+
         def calc_mode_and_check_existance(temp_grid, offset, mode):
             # calculate the supported modes
             TE_List = self._determine_guided_modes(temp_grid, offset)
@@ -510,7 +451,6 @@ class EigenModes(Beam):
                              / np.sqrt(1 + 1 / np.tan(angle) ** 2)
                              * (computational_grid.x - self.waveguide.guide_x_coord))
             return E0 / norm * self.rel_strength * np.exp(self.phase_shift * 1j)
-
 
     # ---------------------------------------------------------------------------------------
     # THE FOLLOWING CODE WAS WRITTEN BY OLIVER MELCHERT, MODIFIED BY JASPER MARTINS

@@ -45,7 +45,8 @@ class ComputationalGrid:
     """
 
     def __init__(self, x_params: tuple = (0, 60, 1000), z_params: tuple = (0, 500, 4000),
-                 k_max: float = 0.05, delta: float = 5):
+                 k_max: float = 0.05, delta: float = 5, absorb_left: bool = True,
+                 absorb_right:bool = True):
         """Initalizes a ComputationalGrid storing the properties of the refractive index distribution.
 
         A empty (constant zero) grid of the size (N_x x N_z)  and arrays containing
@@ -77,6 +78,8 @@ class ComputationalGrid:
         self.n_eff = 0
 
         # boundary-condition shape: (err-func)
+        self.absorb_left = absorb_left
+        self.absorb_right = absorb_right
         self.k_max = k_max
         self.delta = delta
         self.write_absorbing_boundary()
@@ -92,18 +95,20 @@ class ComputationalGrid:
         return x_str + "\t" + z_str
 
     def write_absorbing_boundary(self):
+        absorb_left = lambda x: -self.k_max * (erf(
+                                      ((x - self.x_min) * 2/ self.delta)) - erf(
+                                  2)) if self.absorb_left else 0
+        absorb_right = lambda x: self.k_max * (-erf(
+                                   ((self.x_max - x) * 2 / self.delta)) + erf(
+                                   2)) if self.absorb_right else 0
         self.k = np.piecewise(self.x,
                               [self.x < self.delta + self.x_min,
                                np.logical_and(self.x >= self.delta + self.x_min,
                                               self.x <= self.x_max - self.delta),
                                self.x > self.x_max - self.delta],
-                              [lambda x: -self.k_max * (erf(
-                                      ((x - self.x_min) * 2/ self.delta)) - erf(
-                                  2)),
+                              [absorb_left,
                                0,
-                               lambda x: self.k_max * (-erf(
-                                   ((self.x_max - x) * 2 / self.delta)) + erf(
-                                   2))])
+                               absorb_right])
         self.boundary_mask[self.k == 0] = 1
 
     def dump_data(self, filepath):
@@ -146,7 +151,7 @@ class ComputationalGrid:
         self.xz_mesh = np.meshgrid(self.x, self.z, indexing='ij')
         self.write_absorbing_boundary()
 
-    def dump_str(self, filepath):
+    def dump_to_txt(self, filepath):
         """ Save the important properties of a class-instance as a text-file
 
         Parameters
