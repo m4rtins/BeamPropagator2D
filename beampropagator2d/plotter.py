@@ -5,8 +5,6 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from cycler import cycler
 
 from .beampropagater import *
-from .indexcalculator import *
-from .optimizedYjunction import *
 import os
 import subprocess
 
@@ -27,9 +25,12 @@ class Plotter:
     def __init__(self, filepath=None, use_tex=True):
         self.filepath = "test" if filepath is None else filepath
         self.use_tex = False
+        self.x_label = r"Transversal direction $x$"
+        self.z_label = r"Propagation direction $z$"
+
         if use_tex:
             try:
-                subprocess.check_call("latex -help")
+                subprocess.check_call(["latex","-help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 self.use_tex = True
                 self.tex_setup()
 
@@ -39,9 +40,6 @@ class Plotter:
 
                 print("Latex depedency not satisfied (calling *latex -help* failed)")
                 print("Dafaulting to no latex usage")
-                self.x_label = r"Transversal direction $x$"
-                self.z_label = r"Propagation direction $z$"
-
 
 
     def tex_setup(self):
@@ -80,6 +78,12 @@ class Plotter:
 
             "pgf.preamble": [
 
+                r"\usepackage{libertine}",
+
+                r"\usepackage{libertinust1math}",
+
+                r"\usepackage{microtype}"
+
                 r"\usepackage[utf8x]{inputenc}",
 
                 r"\usepackage[T1]{fontenc}",
@@ -98,7 +102,9 @@ class Plotter:
 
         return fig, ax
 
-    def savefig(self, filename):
+    def savefig(self, filename=""):
+
+        filename = self.filepath + filename
         plt.savefig('{}.pgf'.format(filename), dpi=300, #bbox_inches='tight', pad_inches=1)
                 )
         plt.savefig('{}.pdf'.format(filename), dpi=300, #bbox_inches='tight',pad_inches=1
@@ -172,7 +178,7 @@ class Plotter:
 
     def plot_crosssection(self, beam_propagator, z):
 
-        fig, ax = self.newfig(1,1,1,2)
+        fig, ax = self.newfig(1,1,0.5,0.75)
 
         field = beam_propagator.observer.efield_profile[np.logical_and(
             beam_propagator.computational_grid.z < z + beam_propagator.computational_grid.dz,
@@ -247,7 +253,7 @@ class Plotter:
 
 
         if ax is None:
-            fig, ax = self.newfig(1, 1, 0.5, 1.7)
+            fig, ax = self.newfig(1, 1, 0.5, 1.25)
 
 
         im_field = self._plot_field(ax, beam_propagator)
@@ -261,7 +267,7 @@ class Plotter:
             re = beam_propagator.computational_grid.n_xz[:-1]
             ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}(n)$", linewidth=1)
             ax2.set_xlim(beam_propagator.computational_grid.x_min, beam_propagator.computational_grid.x_max)
-            ax2.set_ylim(1.499, 1.504)
+            ax2.set_ylim(np.amin(re) * 0.99, np.amax(re) * 1.01)
             ax2.set_xticklabels([])
             ax2.set_yticks([])
             if index_legend:
@@ -388,7 +394,7 @@ class Plotter:
         x_min, x_max = beam_propagator.computational_grid.x[0], beam_propagator.computational_grid.x[-1]
         z_min, z_max = beam_propagator.computational_grid.z[0], beam_propagator.computational_grid.z[-1]
         field = np.abs(beam_propagator.observer.efield_profile)**2
-        im = ax.pcolorfast((x_min, x_max), (z_min, z_max), field, vmin=0, vmax=0.25,
+        im = ax.pcolorfast((x_min, x_max), (z_min, z_max), field, #vmin=0, vmax=0.25,
                            cmap='inferno')
         return im
 

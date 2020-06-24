@@ -442,6 +442,7 @@ class EigenModes(Beam):
 
             norm = np.sqrt(np.trapz(np.abs(E0) ** 2, dx=computational_grid.dx))
             if hasattr(self.waveguide, "angle") and angle != 0:
+                print(angle)
                 if angle < 0:
                     fac = -1
                 else:

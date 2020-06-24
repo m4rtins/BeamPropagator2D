@@ -6,8 +6,6 @@ import numpy as np
 from .waveguides import *
 
 
-
-
 class Observer:
     """ Class providing methods for monitoring of all properties of interest of the propagated beam """
 
@@ -69,7 +67,7 @@ class Observer:
     def _calc_efield_power_in_guide(self, current_E_field, dx):
         w_mask = self.computational_grid.waveguide_mask
         b_mask = self.computational_grid.boundary_mask
-        masked_field = current_E_field * w_mask[:,self._propation_step] * b_mask 
+        masked_field = current_E_field * w_mask[:,self._propation_step] * b_mask
         self.efield_power_in_guide[self._propation_step] = np.trapz(
                                             np.abs(masked_field) ** 2, dx=dx)
 

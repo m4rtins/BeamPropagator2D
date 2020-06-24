@@ -243,7 +243,7 @@ class WaveguideBase:
             computational_grid)
 
         # and a write a mask for the waveguide used for various purposes
-        if self.write_mask and hasattr(self, "effectice_width"):
+        if hasattr(self, "effective_width"):
             computational_grid.waveguide_mask[np.abs(distances_from_center) <= \
                                               self.effective_width] = self.write_mask
 
