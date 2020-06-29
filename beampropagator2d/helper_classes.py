@@ -32,8 +32,8 @@ class ProgressBar:
         time_left = estimated_duration - dtime.total_seconds()
         dtime = str(dtime)
 
-        sys.stdout.write("\r# [%s] elaspsed time [%s] est. dur.[%.2f] time left [%.2f][%-100s] %d%%" % (
-            self.prefix ,dtime, estimated_duration, time_left, '#' * percent, percent))
+        sys.stdout.write("\r# [%s] elaspsed time [%s] est. dur.[%.2f] time left [%.2f][%-20s] %d%%" % (
+            self.prefix ,dtime, estimated_duration, time_left, '#' * (percent // 5), percent))
         sys.stdout.flush()
         if self.iteration > self.total:
             sys.stdout.write("\n")
