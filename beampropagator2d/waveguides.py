@@ -1,7 +1,6 @@
 # -------------------------------------------
 
 # Created by:               jasper
-# as part of the project:   Bachelorarbeit
 # Date:                     11/6/19
 
 # --------------------------------------------
@@ -41,7 +40,7 @@ class ComputationalGrid:
         The width of the absorbing layer and the boundaries
     k : np.ndarray
         A N_x-sized array containing the imaginary part of the index distribution.
-        At the boundaries, the imaginary part has the shape of a Gaussian-Error Funktion.
+        At the boundaries, the imaginary part has the shape of a Gaussian-Error function.
     """
 
     def __init__(self, x_params: tuple = (0, 60, 1000), z_params: tuple = (0, 500, 4000),
@@ -243,9 +242,9 @@ class WaveguideBase:
             computational_grid)
 
         # and a write a mask for the waveguide used for various purposes
-        if hasattr(self, "effective_width"):
+        if hasattr(self, "effective_width") and self.write_mask:
             computational_grid.waveguide_mask[np.abs(distances_from_center) <= \
-                                              self.effective_width] = self.write_mask
+                                              self.effective_width] = 1
 
         # change only the part of the grid we actually want to write a structure into
         grid = self.rel_index_profile(distances_from_center)

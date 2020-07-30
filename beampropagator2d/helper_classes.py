@@ -1,7 +1,6 @@
 # -------------------------------------------
 
 # Created by:               jasper
-# as part of the project:   Bachelorarbeit
 # Date:                     4/30/20
 
 #--------------------------------------------

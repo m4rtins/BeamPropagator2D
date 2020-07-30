@@ -208,7 +208,6 @@ class IndexCalculator():
 
         ref_indices = np.linspace(np.amin(np.real(self.ideal_index_distribution))-0.03, np.amax(np.real(self.ideal_index_distribution)) + 0.03, 1000)
 
-#        ref_indices = np.linspace(self.index_levels[0]-0.03, self.index_levels[-1] + 0.03, 1000)
         y = []
         for i in ref_indices:
             errors = calculate_distri_and_errors(i)

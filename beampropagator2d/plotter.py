@@ -1,11 +1,7 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-from cycler import cycler
 
 from .beampropagater import *
-import os
 import subprocess
 
 # ------------------------------------------------------------------------------
@@ -23,6 +19,18 @@ class Plotter:
 
 
     def __init__(self, filepath=None, use_tex=True):
+        """Initialize a Plotter-instance.
+
+        Parameters
+        ----------
+        filepath : str
+            Filepath indicating the directory for the storage of plots generated with use_tex=True. Defaults to the
+            working directory.
+        use_tex : bool
+            If true, latex is used to render the plots with both pgf and pdf as the resulting file formats. Defaults to
+            false.
+
+        """
         self.filepath = "test" if filepath is None else filepath
         self.use_tex = False
         self.x_label = r"Transversal direction $x$"
@@ -41,8 +49,8 @@ class Plotter:
                 print("Latex depedency not satisfied (calling *latex -help* failed)")
                 print("Dafaulting to no latex usage")
 
-
     def tex_setup(self):
+        """Stores several parameters for the TeX-rendering of plots, including font-sizes and used packages"""
 
         import matplotlib as mpl
 
@@ -125,22 +133,60 @@ class Plotter:
 
         return fig_size
 
+    def plot_ideal_index_distribution(self, obj):
 
-    def _plot_power_attenuation(self, z, alpha):
+        if isinstance(obj, optimizedYjunction):
+            index_calculator = obj.index_calculator
+        elif isinstance(obj, IndexCalculator):
+            index_calculator = obj
 
-        fig, ax = self.newfig(1,1,1,2)
+        fig, (ax1, ax2) = self.newfig(1,2,1,2)
 
-        ax.plot(z, alpha)
+        x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
+        z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
 
-        ax.set_xlabel(r"Propagation direction $z$ in $\mu m$")
-        ax.set_ylabel(r"Power attenuation $\frac{P_0}{P_z}$ in $db$")
+        index_real = np.transpose(np.real(
+                                    index_calculator.ideal_index_distribution))
+        index_imag = np.transpose(np.imag(
+                                    index_calculator.ideal_index_distribution))
+        im_index = ax1.pcolorfast((x_min, x_max), (z_min, z_max),
+                                  index_real, cmap='magma')
 
-        ax.set_title(r"Relative power transmitted by waveguide")
-        ax.grid(which="angle", linestyle='dashed')
-        ax.grid(which='minor', linestyle='dotted')
-        ax.spines['top'].set_color('none')
-        ax.spines['right'].set_color('none')
+        im_index_imag = ax2.pcolorfast((x_min, x_max), (z_min, z_max),
+                                       index_imag, cmap='seismic', vmin=index_imag.min(), vmax=-index_imag.min())
 
+        divider = make_axes_locatable(ax1)
+        cax = divider.append_axes("right", size="3%", pad=0.05)
+        cbar = fig.colorbar(im_index, cax=cax)
+        cbar.ax.set_ylabel(r'$Re(n)$')
+
+        divider = make_axes_locatable(ax2)
+        cax2 = divider.append_axes("right", size="3%", pad=0.05)
+        cbar2 = fig.colorbar(im_index_imag, cax=cax2)
+        cbar2.ax.set_ylabel(r'$Im(n)$')
+
+        ax1.set_xlabel(self.x_label)
+        ax1.set_ylabel(self.z_label)
+
+        ax2.set_xlabel(self.x_label)
+        ax2.set_ylabel(self.z_label)
+        ax1.set_title(r'Real part of the index distribution')
+        ax2.set_title(r'Imaginary part of the index distribution')
+        plt.tight_layout()
+
+    def plot_phase_fronts(self, beam_propagator, ax=None, mask=False):
+        if ax is None:
+            fig, ax = self.newfig(1, 1, 0.5, 1.7)
+
+
+        im_phase = self._plot_phase_fronts(ax, beam_propagator)
+        if mask:
+            im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
+
+
+        ax.set_xlabel(self.x_label)
+        ax.set_ylabel(self.z_label)
+        plt.tight_layout()
 
     def plot_index_distribution(self, obj):
         if isinstance(obj, BeamPropagator2D):
@@ -161,8 +207,6 @@ class Plotter:
         cbar.ax.set_ylabel(r'Refractive index')
         ax.legend(loc=4)
 
-
-
     def plot_power_attenuation(self, beam_propagator):
 
         fig, ax = plt.subplots()
@@ -173,8 +217,6 @@ class Plotter:
         ax.plot(z, alpha)
         ax.set_xlabel(self.x_label)
         ax.set_ylabel(r'Power attenuation $\frac{P_0}{P_z}$ in $db$')
-
-
 
     def plot_crosssection(self, beam_propagator, z):
 
@@ -206,6 +248,89 @@ class Plotter:
         lines2, labels2 = ax1.get_legend_handles_labels()
         ax.legend(lines + lines2, labels + labels2, loc=0)
 
+    def plot_field_waveguide_overlay(self, beam_propagator, colorbar=True, x_label=True, z_label=True, index_plot=False, index_legend=False, ax=None, fig=None):
+
+
+        if ax is None:
+            fig, ax = self.newfig(1, 1, 0.5, 1.25)
+
+
+        im_field = self._plot_field(ax, beam_propagator)
+        im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
+        im_w_mask = self._waveguide_mask_overlay(ax, beam_propagator.computational_grid)
+        im_b_mask = self._boundary_mask_overlay(ax, beam_propagator.computational_grid)
+        divider = make_axes_locatable(ax)
+
+        if index_plot:
+            ax2 = divider.append_axes("top", size=0.2, pad=0.1)
+            re = beam_propagator.computational_grid.n_xz[:-1]
+            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}(n)$", linewidth=1)
+            ax2.set_xlim(beam_propagator.computational_grid.x_min, beam_propagator.computational_grid.x_max)
+            ax2.set_ylim(np.amin(re) * 0.99, np.amax(re) * 1.01)
+            ax2.set_xticklabels([])
+            ax2.set_yticks([])
+            if index_legend:
+                ax2.legend(bbox_to_anchor=(1.01, 0.5), fancybox=False, loc="center left", frameon=False)
+
+        if colorbar:
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = fig.colorbar(im_field, cax=cax)
+            cbar.ax.set_ylabel(r'Normalized field intensity')
+
+
+
+
+        if x_label:
+            ax.set_xlabel(self.x_label)
+        if z_label:
+            ax.set_ylabel(self.z_label)
+        plt.tight_layout()
+
+    def plot_interpolated_field(self, obj):
+        if isinstance(obj, optimizedYjunction):
+            indexcalculator = obj.index_calc
+        elif isinstance(obj, IndexCalculator):
+            indexcalculator = obj
+        fig, ax = self.newfig(1,1,1,2)
+
+        x_min, x_max = indexcalculator.x[0], indexcalculator.x[-1]
+        z_min, z_max = indexcalculator.z[0], indexcalculator.z[-1]
+        field = np.abs(indexcalculator.interpolated_field)**2
+        im_field = ax.pcolorfast((x_min, x_max), (z_min, z_max), field,
+                           #norm=colors.SymLogNorm(linthresh=0.03, linscale=0.5,
+                           #),
+                           cmap='inferno')
+
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="3%", pad=0.05)
+        cbar = fig.colorbar(im_field, cax=cax)
+        cbar.ax.set_ylabel(r'Field Intensity')
+
+    def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True):
+
+        if isinstance(obj, optimizedYjunction):
+            index_calculator = obj.index_calc
+        elif isinstance(obj, IndexCalculator):
+            index_calculator = obj
+        elif isinstance(obj, BeamPropagator2D):
+            index_calculator = obj.waveguide.index_calc
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
+        z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
+
+        im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
+                                 np.transpose(index_calculator.trimmed_index_distribution),
+                                cmap='hot', vmin=1.5, vmax=1.527)
+        if colorbar:
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cbar = fig.colorbar(im_index, cax=cax)
+            cbar.ax.set_ylabel(r'$Re(n)$')
+        if x_label:
+            ax.set_xlabel(self.x_label)
 
     def _plot_index_profile(self, ax, computational_grid):
         x_min, x_max = computational_grid.x_min, computational_grid.x_max
@@ -249,146 +374,20 @@ class Plotter:
 
         return im
 
-    def plot_field_waveguide_overlay(self, beam_propagator, colorbar=True, x_label=True, z_label=True, index_plot=False, index_legend=False, ax=None, fig=None):
+    def _plot_power_attenuation(self, z, alpha):
 
-
-        if ax is None:
-            fig, ax = self.newfig(1, 1, 0.5, 1.25)
-
-
-        im_field = self._plot_field(ax, beam_propagator)
-        im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
-        im_w_mask = self._waveguide_mask_overlay(ax, beam_propagator.computational_grid)
-        im_b_mask = self._boundary_mask_overlay(ax, beam_propagator.computational_grid)
-        divider = make_axes_locatable(ax)
-
-        if index_plot:
-            ax2 = divider.append_axes("top", size=0.2, pad=0.1)
-            re = beam_propagator.computational_grid.n_xz[:-1]
-            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}(n)$", linewidth=1)
-            ax2.set_xlim(beam_propagator.computational_grid.x_min, beam_propagator.computational_grid.x_max)
-            ax2.set_ylim(np.amin(re) * 0.99, np.amax(re) * 1.01)
-            ax2.set_xticklabels([])
-            ax2.set_yticks([])
-            if index_legend:
-                ax2.legend(bbox_to_anchor=(1.01, 0.5), fancybox=False, loc="center left", frameon=False)
-
-        if colorbar:
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            cbar = fig.colorbar(im_field, cax=cax)
-            cbar.ax.set_ylabel(r'Normalized field intensity')
-
-
-
-
-        if x_label:
-            ax.set_xlabel(self.x_label)
-        if z_label:
-            ax.set_ylabel(self.z_label)
-        plt.tight_layout()
-
-
-    def plot_interpolated_field(self, obj):
-        if isinstance(obj, optimizedYjunction):
-            indexcalculator = obj.index_calc
-        elif isinstance(obj, IndexCalculator):
-            indexcalculator = obj
         fig, ax = self.newfig(1,1,1,2)
 
-        x_min, x_max = indexcalculator.x[0], indexcalculator.x[-1]
-        z_min, z_max = indexcalculator.z[0], indexcalculator.z[-1]
-        field = np.abs(indexcalculator.interpolated_field)**2
-        im_field = ax.pcolorfast((x_min, x_max), (z_min, z_max), field,
-                           #norm=colors.SymLogNorm(linthresh=0.03, linscale=0.5,
-                           #),
-                           cmap='inferno')
+        ax.plot(z, alpha)
 
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="3%", pad=0.05)
-        cbar = fig.colorbar(im_field, cax=cax)
-        cbar.ax.set_ylabel(r'Field Intensity')
-        
+        ax.set_xlabel(r"Propagation direction $z$ in $\mu m$")
+        ax.set_ylabel(r"Power attenuation $\frac{P_0}{P_z}$ in $db$")
 
-    def plot_ideal_index_distribution(self, obj):
-
-        if isinstance(obj, optimizedYjunction):
-            index_calculator = obj.index_calculator
-        elif isinstance(obj, IndexCalculator):
-            index_calculator = obj
-
-        fig, (ax1, ax2) = self.newfig(1,2,1,2)
-
-        x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
-        z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
-
-        index_real = np.transpose(np.real(
-                                    index_calculator.ideal_index_distribution))
-        index_imag = np.transpose(np.imag(
-                                    index_calculator.ideal_index_distribution))
-        im_index = ax1.pcolorfast((x_min, x_max), (z_min, z_max),
-                                  index_real, cmap='magma')
-
-        im_index_imag = ax2.pcolorfast((x_min, x_max), (z_min, z_max),
-                                       index_imag, cmap='seismic', vmin=index_imag.min(), vmax=-index_imag.min())
-
-        divider = make_axes_locatable(ax1)
-        cax = divider.append_axes("right", size="3%", pad=0.05)
-        cbar = fig.colorbar(im_index, cax=cax)
-        cbar.ax.set_ylabel(r'$Re(n)$')
-
-        divider = make_axes_locatable(ax2)
-        cax2 = divider.append_axes("right", size="3%", pad=0.05)
-        cbar2 = fig.colorbar(im_index_imag, cax=cax2)
-        cbar2.ax.set_ylabel(r'$Im(n)$')
-
-        ax1.set_xlabel(self.x_label)
-        ax1.set_ylabel(self.z_label)
-
-        ax2.set_xlabel(self.x_label)
-        ax2.set_ylabel(self.z_label)
-        ax1.set_title(r'Real part of the index distribution')
-        ax2.set_title(r'Imaginary part of the index distribution')
-        plt.tight_layout()
-
-    def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True):
-
-        if isinstance(obj, optimizedYjunction):
-            index_calculator = obj.index_calc
-        elif isinstance(obj, IndexCalculator):
-            index_calculator = obj
-        elif isinstance(obj, BeamPropagator2D):
-            index_calculator = obj.waveguide.index_calc
-
-        if ax is None:
-            fig, ax = plt.subplots()
-
-        x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
-        z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
-
-        im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
-                                 np.transpose(index_calculator.trimmed_index_distribution),
-                                cmap='hot', vmin=1.5, vmax=1.527)
-        if colorbar:
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            cbar = fig.colorbar(im_index, cax=cax)
-            cbar.ax.set_ylabel(r'$Re(n)$')
-        if x_label:
-            ax.set_xlabel(self.x_label)
-
-    def plot_phase_fronts(self, beam_propagator, ax=None, mask=False):
-        if ax is None:
-            fig, ax = self.newfig(1, 1, 0.5, 1.7)
-
-
-        im_phase = self._plot_phase_fronts(ax, beam_propagator)
-        if mask:
-            im_index = self._waveguide_overlay(ax, beam_propagator.computational_grid)
-
-
-        ax.set_xlabel(self.x_label)
-        ax.set_ylabel(self.z_label)
-        plt.tight_layout()
+        ax.set_title(r"Relative power transmitted by waveguide")
+        ax.grid(which="angle", linestyle='dashed')
+        ax.grid(which='minor', linestyle='dotted')
+        ax.spines['top'].set_color('none')
+        ax.spines['right'].set_color('none')
 
     def _plot_field(self, ax, beam_propagator):
         x_min, x_max = beam_propagator.computational_grid.x[0], beam_propagator.computational_grid.x[-1]

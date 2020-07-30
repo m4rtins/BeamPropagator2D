@@ -1,7 +1,6 @@
 # -------------------------------------------
 
 # Created by:               jasper
-# as part of the project:   Bachelorarbeit
 # Date:                     11/24/19
 
 # --------------------------------------------
@@ -20,7 +19,7 @@ class IOHandler:
         directory : str
             path of the directory the files are saved to or read from
         fName : str
-            Name of the project. File endings will be set automaticly
+            Name of the project. File endings will be set automaticaly
         data_instance : object
             class instance to perform actions on
         """
@@ -70,5 +69,5 @@ class IOHandler:
             self.data_instance.read_data(self.directory + self.fName)
         except FileNotFoundError as file_error:
             print(
-                "# The file {} belonging to {} do not exist. Either provide the missing file or run a instance-specific data reader".format(
+                "# The file {} belonging to {} do not exist.".format(
                     file_error.filename, self.fName))

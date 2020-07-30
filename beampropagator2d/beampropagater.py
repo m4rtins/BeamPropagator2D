@@ -1,7 +1,6 @@
 # -------------------------------------------
 
 # Created by:               jasper
-# as part of the project:   Bachelorarbeit
 # Date:                     11/7/19
 
 # --------------------------------------------
@@ -40,7 +39,7 @@ class BeamPropagator2D:
                  beam: Union[Beam, SuperPosition] = None, E0=None, n_eff=None):
         """Create a BeamPropagator2D instance, bundling the structures
         "ComputationalGrid", "Waveguide" and "Beam" in preparation for the
-        application of a propagation method. Supports the Methods:
+        application of a propagation method.
 
         Parameters
         ----------
