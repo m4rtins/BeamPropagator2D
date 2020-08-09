@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 from .beampropagater import *
+from .optimizedYjunction import *
+from .indexcalculator import *
 import subprocess
 
 # ------------------------------------------------------------------------------
@@ -135,10 +137,12 @@ class Plotter:
 
     def plot_ideal_index_distribution(self, obj):
 
-        if isinstance(obj, optimizedYjunction):
+        if isinstance(obj, OptimizedYJunction):
             index_calculator = obj.index_calculator
         elif isinstance(obj, IndexCalculator):
             index_calculator = obj
+        elif isinstance(obj, BeamPropagator2D):
+            index_calculator = obj.waveguide.index_calc
 
         fig, (ax1, ax2) = self.newfig(1,2,1,2)
 
@@ -287,10 +291,13 @@ class Plotter:
         plt.tight_layout()
 
     def plot_interpolated_field(self, obj):
-        if isinstance(obj, optimizedYjunction):
+        if isinstance(obj, OptimizedYJunction):
             indexcalculator = obj.index_calc
         elif isinstance(obj, IndexCalculator):
             indexcalculator = obj
+        elif isinstance(obj, BeamPropagator2D):
+            indexcalculator = obj.waveguide.index_calc
+
         fig, ax = self.newfig(1,1,1,2)
 
         x_min, x_max = indexcalculator.x[0], indexcalculator.x[-1]
@@ -308,7 +315,7 @@ class Plotter:
 
     def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True):
 
-        if isinstance(obj, optimizedYjunction):
+        if isinstance(obj, OptimizedYJunction):
             index_calculator = obj.index_calc
         elif isinstance(obj, IndexCalculator):
             index_calculator = obj
@@ -323,7 +330,7 @@ class Plotter:
 
         im_index = ax.pcolorfast((x_min, x_max), (z_min, z_max),
                                  np.transpose(index_calculator.trimmed_index_distribution),
-                                cmap='hot', vmin=1.5, vmax=1.527)
+                                cmap='magma', vmin=1.5, vmax=1.527)
         if colorbar:
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size="5%", pad=0.05)

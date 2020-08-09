@@ -9,6 +9,7 @@
 from .beam import *
 from .beampropagater import *
 from .indexcalculator import *
+from .optimizedYjunction import *
 from .fileio import *
 from .observer import *
 from .plotter import *
