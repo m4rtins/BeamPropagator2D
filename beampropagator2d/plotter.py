@@ -120,8 +120,14 @@ class Plotter:
         plt.savefig('{}.pdf'.format(filename), dpi=300, #bbox_inches='tight',pad_inches=1
                 )
 
+    def backend(self):
+        if self.use_tex:
+            self.savefig()
+        else:
+            plt.show()
+
     def figsize(self, scale, ratio):
-        fig_width_pt = 418.25555 # Get this from LaTeX using \the\textwidth
+        fig_width_pt = 344.19533 # Get this from LaTeX using \the\textwidth
 
         inches_per_pt = 1.0 / 72.27  # Convert pt to inch
 
@@ -144,7 +150,7 @@ class Plotter:
         elif isinstance(obj, BeamPropagator2D):
             index_calculator = obj.waveguide.index_calc
 
-        fig, (ax1, ax2) = self.newfig(1,2,1,2)
+        fig, (ax1, ax2) = self.newfig(2,1,0.5,1.1)
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
@@ -298,12 +304,12 @@ class Plotter:
         elif isinstance(obj, BeamPropagator2D):
             indexcalculator = obj.waveguide.index_calc
 
-        fig, ax = self.newfig(1,1,1,2)
+        fig, ax = self.newfig(1,1,0.5,1.1)
 
         x_min, x_max = indexcalculator.x[0], indexcalculator.x[-1]
         z_min, z_max = indexcalculator.z[0], indexcalculator.z[-1]
-        field = np.abs(indexcalculator.interpolated_field)**2
-        im_field = ax.pcolorfast((x_min, x_max), (z_min, z_max), field,
+        field = np.transpose(np.abs(indexcalculator.interpolated_field)**2)
+        im_field = ax.pcolorfast((z_min, z_max), (x_min, x_max), field,
                            #norm=colors.SymLogNorm(linthresh=0.03, linscale=0.5,
                            #),
                            cmap='inferno')
@@ -312,8 +318,9 @@ class Plotter:
         cax = divider.append_axes("right", size="3%", pad=0.05)
         cbar = fig.colorbar(im_field, cax=cax)
         cbar.ax.set_ylabel(r'Field Intensity')
+        plt.tight_layout()
 
-    def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True):
+    def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True, z_label=True):
 
         if isinstance(obj, OptimizedYJunction):
             index_calculator = obj.index_calc
@@ -323,7 +330,7 @@ class Plotter:
             index_calculator = obj.waveguide.index_calc
 
         if ax is None:
-            fig, ax = plt.subplots()
+            fig, ax = self.newfig(1,1,0.5,1.1)
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
@@ -333,11 +340,14 @@ class Plotter:
                                 cmap='magma', vmin=1.5, vmax=1.527)
         if colorbar:
             divider = make_axes_locatable(ax)
-            cax = divider.append_axes("right", size="5%", pad=0.05)
+            cax = divider.append_axes("right", size="3%", pad=0.05)
             cbar = fig.colorbar(im_index, cax=cax)
             cbar.ax.set_ylabel(r'$Re(n)$')
         if x_label:
             ax.set_xlabel(self.x_label)
+        if z_label:
+            ax.set_ylabel(self.z_label)
+        plt.tight_layout()
 
     def _plot_index_profile(self, ax, computational_grid):
         x_min, x_max = computational_grid.x_min, computational_grid.x_max
