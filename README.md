@@ -81,4 +81,5 @@ solver.run_simulation()
 
 plotter = Plotter()
 plotter.plot_propageted_beam(solver)
+plotter.backend()
 ```
