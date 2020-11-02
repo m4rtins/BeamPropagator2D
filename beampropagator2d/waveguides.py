@@ -7,8 +7,8 @@
 
 import numpy as np
 from scipy.special import erf
+from scipy.sparse import csc_matrix
 from typing import Union, Iterable
-
 
 class ComputationalGrid:
     """The linear spaced grid in x and z direction consired for
@@ -71,9 +71,10 @@ class ComputationalGrid:
         self.x, self.dx = np.linspace(*x_params, endpoint=False, retstep=True)
         self.z, self.dz = np.linspace(*z_params, endpoint=False, retstep=True)
         self.xz_mesh = np.meshgrid(self.x, self.z, indexing='ij')
+        #self.n_xz = csc_matrix((self.N_x, self.N_z), dtype=np.complex64)
         self.n_xz = np.zeros((self.N_x, self.N_z), dtype=np.complex64)
-        self.waveguide_mask = np.zeros((self.N_x, self.N_z), dtype=int)
-        self.boundary_mask = np.zeros(self.N_x, dtype=int)
+        self.waveguide_mask = np.zeros((self.N_x, self.N_z), dtype=np.int8)
+        self.boundary_mask = np.zeros(self.N_x, dtype=np.int8)
         self.n_eff = 0
 
         # boundary-condition shape: (err-func)
@@ -176,7 +177,7 @@ class WaveguideBase:
     empty waveguide structure into a computational grid.
     """
 
-    def __init__(self, rel_index_profile=None,
+    def __init__(self, rel_index_profile=None, z_index_profile=None,
                  refractive_index_medium=3.3, refractive_index_guide=3.33,
                  coord_mode="relative"):
         """Stores the parameters and provides methods for
@@ -215,13 +216,20 @@ class WaveguideBase:
         self.refractive_index_medium = refractive_index_medium
         self.refractive_index_guide = refractive_index_guide
         # Default function for index profile if not specified at class initialization
+        if z_index_profile is None:
+            self.z_index_profile = lambda z: refractive_index_guide
+        else:
+            self.z_index_profile = z_index_profile
+
+
         if rel_index_profile is None:
             self.rel_index_profile = \
-                lambda x: np.piecewise(x, [np.logical_and(x <= 1, x >= -1), ],
-                                       [refractive_index_guide,
-                                        refractive_index_medium])
+                lambda x, z: np.where(np.logical_and(x <= 1, x >= -1),
+                                       self.z_index_profile(z),
+                                       refractive_index_medium)
         else:
             self.rel_index_profile = rel_index_profile
+
 
         self.profile = ""
         self.form = "Free Space"
@@ -238,7 +246,7 @@ class WaveguideBase:
         print("# Writing {} into computational grid".format(
             self.__class__.__name__))
         # compute the distances of each grid point from the waveguide core
-        distances_from_center = self._compute_distance_from_center(
+        distances_from_center, length = self._compute_distance_from_center(
             computational_grid)
 
         # and a write a mask for the waveguide used for various purposes
@@ -247,11 +255,12 @@ class WaveguideBase:
                                               self.effective_width] = 1
 
         # change only the part of the grid we actually want to write a structure into
-        grid = self.rel_index_profile(distances_from_center)
+        grid = self.rel_index_profile(distances_from_center, length)
         computational_grid.n_xz[grid != 0] = grid[grid != 0]
         # select the refractive index at "infinity" as the reference refractive index
         # used in the propagation simulation
         computational_grid.n_eff = computational_grid.n_xz[0, 0]
+
         return computational_grid
 
     def _compute_distance_from_center(self, computational_grid):
@@ -259,7 +268,7 @@ class WaveguideBase:
         Since this is the case of free space, a grid filled with inf
         is passed to the rel_index_profile function.
         """
-        return computational_grid.n_xz + np.infty
+        return computational_grid.n_xz + np.infty, None
 
 
 class Substrat(WaveguideBase):
@@ -273,7 +282,7 @@ class LinearWaveguide(WaveguideBase):
     linear waveguide structure into a computational grid.
     """
 
-    def __init__(self, rel_index_profile=None, refractive_index_guide=3.33,
+    def __init__(self, rel_index_profile=None, z_index_profile=None, refractive_index_guide=3.33,
                  refractive_index_medium=3.3,
                  width=1, effective_width=1, guide_x_coord=0.5, z_start=0, z_end=1,
                  coord_mode="relative",
@@ -332,6 +341,7 @@ class LinearWaveguide(WaveguideBase):
         """
 
         super().__init__(rel_index_profile=rel_index_profile,
+                         z_index_profile=z_index_profile,
                          refractive_index_medium=refractive_index_medium,
                          refractive_index_guide=refractive_index_guide,
                          coord_mode=coord_mode)
@@ -390,9 +400,12 @@ class LinearWaveguide(WaveguideBase):
             np.logical_and(zv >= z_region[0], zv <= z_region[1]), ],
                           [lambda zv: x0 + np.tan(self.angle) * (
                                   zv - z_region[0]), np.infty])
+
+        length = (zv - z_region[0]) / np.cos(self.angle)
+
         # calculate the shortest distance for each gridpoint from the center of the waveguide
         # relative to the width of the waveguide
-        return 2 * (xv - x0) / self.width * np.cos(self.angle)
+        return 2 * (xv - x0) / self.width * np.cos(self.angle), length
 
 
 class Triangle(WaveguideBase):
@@ -514,7 +527,7 @@ class Triangle(WaveguideBase):
         # reincorporate that mask into the whole picture
         in_triangle[mask] = in_triangle_temp
 
-        return in_triangle
+        return in_triangle, None
 
 
 class BendedWaveguide(WaveguideBase):
@@ -680,7 +693,7 @@ class BendedWaveguide(WaveguideBase):
 
         # compute the waveguide center along the z direction
 
-        x = np.piecewise(zv,
+        x0 = np.piecewise(zv,
                          [np.logical_or(zv < z_start, zv > z_end),
                           np.logical_and(zv < z_bended_region[0],
                                          zv >= z_start),
@@ -692,12 +705,18 @@ class BendedWaveguide(WaveguideBase):
                           lambda zv: x_in + self.form_func(zv, z_bended_region,
                                                            x_out - x_in),
                           x_out])
+
+        x_i = x0[1:] - x0[:-1]
+
+        length = np.zeros(computational_grid.N_z)
+        length[1:] = np.sum(np.sqrt(x_i ** 2 + computational_grid.dz ** 2))
+
         # compute and scale the distance from the waveguide center relative to the width of the waveguide and the
         # bend of the waveguide (we want to know the closest distance, not the horizontal distance
-        return 2 * (xv - x) / self.width / self.form_func_dev(zv,
+        return 2 * (xv - x0) / self.width / self.form_func_dev(zv,
                                                               z_bended_region,
                                                               np.abs(
-                                                                  x_out - x_in))
+                                                                  x_out - x_in)), length
 
 
 class CombinedWaveguide:

@@ -86,21 +86,21 @@ class Plotter:
 
             "figure.figsize": self.figsize(1,2),  # default fig size of 0.9 textwidth
 
-            "pgf.preamble": [
+            "pgf.preamble":
 
-                r"\usepackage{libertine}",
+                r"\usepackage{libertine}" +
 
-                r"\usepackage{libertinust1math}",
+                r"\usepackage{libertinust1math}"+
 
-                r"\usepackage{microtype}"
+                r"\usepackage{microtype}" +
 
-                r"\usepackage[utf8x]{inputenc}",
+                r"\usepackage[utf8x]{inputenc}"+
 
-                r"\usepackage[T1]{fontenc}",
+                r"\usepackage[T1]{fontenc}"+
                 
                 r"\usepackage{siunitx}"
 
-            ]
+
 
         }
 
@@ -150,7 +150,7 @@ class Plotter:
         elif isinstance(obj, BeamPropagator2D):
             index_calculator = obj.waveguide.index_calc
 
-        fig, (ax1, ax2) = self.newfig(2,1,0.5,1.1)
+        fig, (ax1, ax2) = self.newfig(2,1,0.5,1)
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
@@ -168,20 +168,19 @@ class Plotter:
         divider = make_axes_locatable(ax1)
         cax = divider.append_axes("right", size="3%", pad=0.05)
         cbar = fig.colorbar(im_index, cax=cax)
-        cbar.ax.set_ylabel(r'$Re(n)$')
+        cbar.ax.set_ylabel(r'$\text{Re}(n)$')
 
         divider = make_axes_locatable(ax2)
         cax2 = divider.append_axes("right", size="3%", pad=0.05)
         cbar2 = fig.colorbar(im_index_imag, cax=cax2)
-        cbar2.ax.set_ylabel(r'$Im(n)$')
+        cbar2.ax.set_ylabel(r'$\text{Im}(n)$')
 
-        ax1.set_xlabel(self.x_label)
-        ax1.set_ylabel(self.z_label)
+        #ax1.set_xlabel(" ")
+        ax1.set_ylabel(" ")
 
         ax2.set_xlabel(self.x_label)
-        ax2.set_ylabel(self.z_label)
-        ax1.set_title(r'Real part of the index distribution')
-        ax2.set_title(r'Imaginary part of the index distribution')
+        #ax2.set_ylabel(self.z_label)
+        fig.text(0.06, 0.5, self.z_label, ha='center', va='center', rotation='vertical')
         plt.tight_layout()
 
     def plot_phase_fronts(self, beam_propagator, ax=None, mask=False):
@@ -262,7 +261,7 @@ class Plotter:
 
 
         if ax is None:
-            fig, ax = self.newfig(1, 1, 0.5, 1.25)
+            fig, ax = self.newfig(1, 1, 0.46, 1.25)
 
 
         im_field = self._plot_field(ax, beam_propagator)
@@ -272,11 +271,18 @@ class Plotter:
         divider = make_axes_locatable(ax)
 
         if index_plot:
-            ax2 = divider.append_axes("top", size=0.2, pad=0.1)
-            re = beam_propagator.computational_grid.n_xz[:-1]
-            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}(n)$", linewidth=1)
+            ax2 = divider.append_axes("top", size=0.25, pad=0.1)
+            re = np.real(beam_propagator.computational_grid.n_xz[:, -1])
+            field = np.abs(beam_propagator.observer.efield_profile[-1])**2
+            field = field / np.amax(field)
+            field = field * (np.amax(re) - np.amin(re)) + np.amin(re)
+            #ax22 = ax2.twinx()
+            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,-1]), label=r"$\text{Re}[n(z_{\text{max}})]$", linewidth=1)
+            ax2.plot(beam_propagator.computational_grid.x, np.real(beam_propagator.computational_grid.n_xz[:,0]), c="C0", linestyle="dashed", label=r"$\text{Re}[n(z_{\text{min}})]$", linewidth=.5)
+            ax2.plot(beam_propagator.computational_grid.x, field, label=r"$I(z_\text{max})$", linewidth=1)
             ax2.set_xlim(beam_propagator.computational_grid.x_min, beam_propagator.computational_grid.x_max)
-            ax2.set_ylim(np.amin(re) * 0.99, np.amax(re) * 1.01)
+            print(np.amax(re))
+            ax2.set_ylim(np.amin(re) * 0.995, np.amax(re)*1.005)
             ax2.set_xticklabels([])
             ax2.set_yticks([])
             if index_legend:
@@ -285,7 +291,7 @@ class Plotter:
         if colorbar:
             cax = divider.append_axes("right", size="5%", pad=0.05)
             cbar = fig.colorbar(im_field, cax=cax)
-            cbar.ax.set_ylabel(r'Normalized field intensity')
+            cbar.ax.set_ylabel(r'Norm. field intensity')
 
 
 
@@ -304,12 +310,12 @@ class Plotter:
         elif isinstance(obj, BeamPropagator2D):
             indexcalculator = obj.waveguide.index_calc
 
-        fig, ax = self.newfig(1,1,0.5,1.1)
+        fig, ax = self.newfig(1,1,0.5,1)
 
         x_min, x_max = indexcalculator.x[0], indexcalculator.x[-1]
         z_min, z_max = indexcalculator.z[0], indexcalculator.z[-1]
         field = np.transpose(np.abs(indexcalculator.interpolated_field)**2)
-        im_field = ax.pcolorfast((z_min, z_max), (x_min, x_max), field,
+        im_field = ax.pcolorfast((x_min, x_max), (z_min, z_max), field,
                            #norm=colors.SymLogNorm(linthresh=0.03, linscale=0.5,
                            #),
                            cmap='inferno')
@@ -318,6 +324,8 @@ class Plotter:
         cax = divider.append_axes("right", size="3%", pad=0.05)
         cbar = fig.colorbar(im_field, cax=cax)
         cbar.ax.set_ylabel(r'Field Intensity')
+        ax.set_ylabel(self.z_label)
+        ax.set_xlabel(self.x_label)
         plt.tight_layout()
 
     def plot_trimmed_index_distribution(self, obj, fig=None, ax=None, colorbar=True, x_label=True, z_label=True):
@@ -330,7 +338,7 @@ class Plotter:
             index_calculator = obj.waveguide.index_calc
 
         if ax is None:
-            fig, ax = self.newfig(1,1,0.5,1.1)
+            fig, ax = self.newfig(1,1,0.5,1)
 
         x_min, x_max = index_calculator.x[1], index_calculator.x[-2]
         z_min, z_max = index_calculator.z[1], index_calculator.z[-2]
@@ -342,7 +350,7 @@ class Plotter:
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size="3%", pad=0.05)
             cbar = fig.colorbar(im_index, cax=cax)
-            cbar.ax.set_ylabel(r'$Re(n)$')
+            cbar.ax.set_ylabel(r'$\text{Re}(n)$')
         if x_label:
             ax.set_xlabel(self.x_label)
         if z_label:

@@ -12,12 +12,6 @@ class Observer:
     def __init__(self, computational_grid):
         """Create a Observer instance for the collection of storage of the field properties of interest.
 
-        Parameters
-        ----------
-        x_size : int
-            number of grid points in x direction
-        z_size : int
-            number of grid points in z_direction
         """
 
         self.computational_grid = computational_grid
@@ -28,12 +22,12 @@ class Observer:
         self.z_size = computational_grid.N_z
 
 
-        self.efield_power = np.zeros(self.z_size, dtype=np.double)
-        self.efield_power_in_guide = np.zeros(self.z_size, dtype=np.double)
-        self.efield_profile = np.zeros((self.z_size, self.x_size), dtype=np.cdouble)
-        self.mode_loss_mismatch = np.zeros(self.z_size, dtype=np.double)
-        self.P1 = np.zeros(self.z_size, dtype=np.double)
-        self.alpha = np.zeros(self.z_size, dtype=np.double)
+        self.efield_power = np.zeros(self.z_size, dtype=np.float32)
+        self.efield_power_in_guide = np.zeros(self.z_size, dtype=np.float32)
+        self.efield_profile = np.zeros((self.z_size, self.x_size), dtype=np.complex64)
+        self.mode_loss_mismatch = np.zeros(self.z_size, dtype=np.float32)
+        self.P1 = np.zeros(self.z_size, dtype=np.float32)
+        self.alpha = np.zeros(self.z_size, dtype=np.float32)
         self._propation_step = 0
 
 

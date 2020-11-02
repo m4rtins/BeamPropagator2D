@@ -260,7 +260,6 @@ class OptimizedYJunction(CombinedWaveguide):
             output_field =  np.conj(np.interp(x, temp_grid.x, e_field[-1]))
 
         else:
-            print("blub")
             N_x = int(2 * (self.guide_x_coord + self.output_x_offset + 3 * self.width) / 0.1)
 
             temp_grid = ComputationalGrid(

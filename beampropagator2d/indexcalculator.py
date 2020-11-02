@@ -262,9 +262,6 @@ class IndexCalculator():
         # for each x coordinate in x
         condlist = [np.logical_and(x <= i + self.dx/1.9, x > i - self.dx/1.9)
                                                      for i in self.x[1:-1]]
-        z = self.z
-        dz = self.dz
-        dx = self.dx
         n_xz = computational_grid.n_xz
         mask = computational_grid.waveguide_mask
         index_distro = self.ideal_index_distribution if self.use_ideal_distribution else \
